@@ -13,6 +13,7 @@ firebase-admin==6.5.0
 sqlalchemy==2.0.30
 alembic==1.13.1
 psycopg2-binary==2.9.9
+aiosqlite==0.20.0
 motor==3.4.0
 pymongo==4.7.2
 redis==5.0.4
