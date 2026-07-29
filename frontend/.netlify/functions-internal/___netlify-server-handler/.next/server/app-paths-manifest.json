@@ -1,0 +1,20 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/(auth)/register/page": "app/(auth)/register/page.js",
+  "/(auth)/forgot-password/page": "app/(auth)/forgot-password/page.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/page": "app/page.js",
+  "/(dashboard)/ai-chat/page": "app/(dashboard)/ai-chat/page.js",
+  "/(dashboard)/admin/page": "app/(dashboard)/admin/page.js",
+  "/(dashboard)/analytics/page": "app/(dashboard)/analytics/page.js",
+  "/(dashboard)/notes/[id]/page": "app/(dashboard)/notes/[id]/page.js",
+  "/(dashboard)/flashcards/page": "app/(dashboard)/flashcards/page.js",
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
+  "/(dashboard)/search/page": "app/(dashboard)/search/page.js",
+  "/(dashboard)/revision/page": "app/(dashboard)/revision/page.js",
+  "/(dashboard)/quiz/page": "app/(dashboard)/quiz/page.js",
+  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
+  "/(dashboard)/notes/page": "app/(dashboard)/notes/page.js",
+  "/(dashboard)/translate/page": "app/(dashboard)/translate/page.js",
+  "/(dashboard)/upload/page": "app/(dashboard)/upload/page.js"
+}
