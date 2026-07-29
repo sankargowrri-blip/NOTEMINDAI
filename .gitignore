@@ -29,4 +29,6 @@ cloudflared.exe
 *.txt
 scratch*
 frontend/scratch*
+frontend/.netlify/
+
 
