@@ -6,7 +6,17 @@ import { Toaster } from "react-hot-toast";
 export const metadata: Metadata = {
   title: "NoteMind AI — Smart Study Assistant",
   description: "Transform handwritten notes into intelligent, searchable digital documents with AI",
-  icons: { icon: "/favicon.ico" },
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/logo-icon.svg",
+    apple: "/logo-icon.svg",
+  },
+  openGraph: {
+    title: "NoteMind AI — Smart Study Assistant",
+    description: "Transform handwritten notes into intelligent, searchable digital documents with AI",
+    images: [{ url: "/og-image.svg", width: 1200, height: 630 }],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

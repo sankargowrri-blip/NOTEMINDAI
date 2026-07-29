@@ -24,6 +24,9 @@ frontend/out/
 .DS_Store
 Thumbs.db
 
-# IDE
-.vscode/settings.json
-.idea/
+# Temporary & Executables
+cloudflared.exe
+*.txt
+scratch*
+frontend/scratch*
+

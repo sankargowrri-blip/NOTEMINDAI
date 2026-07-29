@@ -36,8 +36,23 @@ def _is_allowed(content_type: str | None) -> bool:
     return ct in ALLOWED_TYPES or ct.startswith("image/")
 
 
+def _extract_pdf_text_direct(pdf_bytes: bytes) -> str:
+    """Extract text directly from a text-based PDF using PyMuPDF (fast, no OCR needed)."""
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        parts = []
+        for page in doc:
+            text = page.get_text("text")
+            if text.strip():
+                parts.append(text.strip())
+        return "\n\n--- Page Break ---\n\n".join(parts)
+    except Exception as e:
+        logger.warning(f"PDF direct text extraction failed: {e}")
+        return ""
+
+
 def _split_pdf_to_images(pdf_bytes: bytes) -> list[bytes]:
-    """Convert each PDF page to PNG bytes."""
+    """Convert each PDF page to PNG bytes (used only for scanned/image PDFs)."""
     pages = []
     try:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -86,6 +101,67 @@ async def upload_file(
     # Split PDF into pages, or treat single image as one page
     is_pdf = (file.content_type or "").lower() == "application/pdf" or \
              (file.filename or "").lower().endswith(".pdf")
+
+    # For text-based PDFs, extract text directly (fast, accurate)
+    if is_pdf:
+        direct_text = _extract_pdf_text_direct(content)
+        if len(direct_text.strip()) > 100:
+            # It's a text PDF — skip OCR entirely
+            raw_text = direct_text
+            avg_confidence = 1.0
+            images = _split_pdf_to_images(content)
+
+            note_title = title.strip() or (file.filename or "Untitled Note").rsplit(".", 1)[0]
+            unique_name = f"{uuid.uuid4()}_{file.filename}"
+            original_url = await save_file(content, current_user.id, f"original/{unique_name}")
+
+            try:
+                refined_result = refine_text(raw_text)
+                refined = refined_result["refined_text"]
+            except Exception as e:
+                logger.warning(f"Text refinement failed: {e}")
+                refined = raw_text
+
+            note = Note(
+                owner_id=current_user.id,
+                title=note_title,
+                status=NoteStatus.ready,
+                ocr_confidence=round(avg_confidence, 3),
+                language=language,
+                original_file_url=original_url,
+                enhanced_file_url=original_url,
+                raw_ocr_text=raw_text,
+                refined_text=refined,
+                formatted_text=refined,
+                file_hash=file_hash,
+                page_count=len(images),
+                file_size_mb=round(size_mb, 3),
+                subject=subject or None,
+                semester=semester or None,
+            )
+            db.add(note)
+            current_user.storage_used_mb = (current_user.storage_used_mb or 0.0) + size_mb
+            await db.commit()
+            await db.refresh(note)
+
+            try:
+                chunks = [c for c in refined.split("\n\n") if c.strip()]
+                if chunks:
+                    index_note(str(current_user.id), str(note.id), chunks)
+            except Exception as e:
+                logger.warning(f"Vector indexing failed: {e}")
+
+            return {
+                "note_id": note.id,
+                "title": note.title,
+                "status": note.status.value,
+                "ocr_confidence": note.ocr_confidence,
+                "page_count": note.page_count,
+                "ocr_text_preview": raw_text[:300],
+                "no_text_detected": False,
+                "low_confidence_warning": False,
+            }
+
     images = _split_pdf_to_images(content) if is_pdf else [content]
 
     note_title = title.strip() or (file.filename or "Untitled Note").rsplit(".", 1)[0]

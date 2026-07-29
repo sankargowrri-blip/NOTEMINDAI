@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800">
+  <rect width="600" height="800" fill="#fef3c7" />
+  <line x1="80" y1="0" x2="80" y2="800" stroke="#f87171" stroke-width="2" />
+  <g stroke="#94a3b8" stroke-width="1" stroke-dasharray="2,2">
+    <line x1="0" y1="100" x2="600" y2="100" />
+    <line x1="0" y1="150" x2="600" y2="150" />
+    <line x1="0" y1="200" x2="600" y2="200" />
+    <line x1="0" y1="250" x2="600" y2="250" />
+    <line x1="0" y1="300" x2="600" y2="300" />
+    <line x1="0" y1="350" x2="600" y2="350" />
+  </g>
+  <text x="110" y="90" font-family="'Caveat', 'Comic Sans MS', cursive" font-size="32" fill="#1e3a8a">Biology Notes - Photosynthesis</text>
+  <text x="110" y="140" font-family="'Caveat', 'Comic Sans MS', cursive" font-size="24" fill="#1e293b">1. Light Reaction in Thylakoids</text>
+  <text x="110" y="190" font-family="'Caveat', 'Comic Sans MS', cursive" font-size="24" fill="#1e293b">2. Calvin Cycle in Stroma</text>
+  <text x="110" y="240" font-family="'Caveat', 'Comic Sans MS', cursive" font-size="24" fill="#1e293b">Equation: 6CO2 + 6H2O -> C6H12O6 + 6O2</text>
+</svg>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="400" height="100">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+    <linearGradient id="sparkle" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc" />
+      <stop offset="100%" stop-color="#e879f9" />
+    </linearGradient>
+  </defs>
+  <rect x="10" y="15" width="70" height="70" rx="18" fill="url(#grad)" />
+  <path d="M30 35 H60 M30 50 H52 M30 65 H45" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+  <path d="M60 62 L65 57 L72 64 L67 69 Z" fill="url(#sparkle)" />
+  <text x="95" y="58" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="34" fill="#ffffff" letter-spacing="-0.5">NoteMind<tspan fill="#818cf8">.AI</tspan></text>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#0b0f19" />
+  <circle cx="200" cy="150" r="300" fill="#4f46e5" opacity="0.15" filter="blur(60px)" />
+  <circle cx="1000" cy="500" r="350" fill="#9333ea" opacity="0.15" filter="blur(60px)" />
+  <g transform="translate(100, 200)">
+    <rect x="0" y="0" width="120" height="120" rx="28" fill="#6366f1" />
+    <path d="M35 40 H85 M35 60 H75 M35 80 H60" stroke="#ffffff" stroke-width="7" stroke-linecap="round" />
+    <text x="160" y="75" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="72" fill="#ffffff">NoteMind<tspan fill="#818cf8"> AI</tspan></text>
+    <text x="0" y="180" font-family="system-ui, -apple-system, sans-serif" font-weight="500" font-size="36" fill="#9ca3af">Turn Handwritten Notes into Intelligent Study Assistants</text>
+    <text x="0" y="240" font-family="system-ui, -apple-system, sans-serif" font-weight="400" font-size="24" fill="#6b7280">OCR Extraction • AI Flashcards • Quiz Generator • RAG Study Chat</text>
+  </g>
+</svg>
