@@ -19,6 +19,44 @@ motor==3.4.0
 pymongo==4.7.2
 redis==5.0.4
 
+# NLP / LangChain / RAG
+langchain==0.2.1
+langchain-openai==0.1.7
+langchain-community==0.2.1
+llama-index==0.10.42
+sentence-transformers==3.0.0
+chromadb==0.5.0
+openai==1.30.1
+
+# AI / OCR (CPU versions for cloud stability)
+torch==2.3.0+cpu
+torchvision==0.18.0+cpu
+transformers==4.41.1
+pytesseract==0.3.10
+Pillow==10.3.0
+opencv-python-headless==4.9.0.80
+numpy==1.26.4
+scipy==1.13.0
+
+# Text processing
+language-tool-python==2.7.1
+spacy==3.7.4
+nltk==3.8.1
+sympy==1.12
+
+# PDF processing
+PyMuPDF==1.24.4
+
+# Export
+reportlab==4.2.0
+python-docx==1.1.0
+markdown==3.6
+python-pptx==0.6.23
+
+# Storage
+boto3==1.34.107
+google-cloud-storage==2.16.0
+
 # Utils
 pydantic==2.7.1
 pydantic-settings==2.2.1
