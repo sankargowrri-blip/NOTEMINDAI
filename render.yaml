@@ -1,3 +1,7 @@
+databases:
+  - name: notemind-db
+    plan: free
+
 services:
   - type: web
     name: notemind-api
@@ -22,6 +26,12 @@ services:
         value: local
       - key: LOCAL_UPLOAD_DIR
         value: uploads
+      - key: POSTGRES_URL
+        fromDatabase:
+          name: notemind-db
+          property: connectionString
+      - key: MONGO_URL
+        sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: OPENAI_API_KEY
