@@ -1,0 +1,7 @@
+workspace:
+  id: bd47953a-cacf-40ac-822b-adff7a34eed0
+cloudResources:
+  collections:
+    ../postman/collections/My Collection: 56765320-312e447f-9e59-41ef-9d21-d6a016674868
+    ../postman/collections/My Collection-1: 56765320-44d603b9-e163-4ffa-9fcb-a5fa8fa32403
+    ../postman/collections/My Collection-2: 56765320-75a5a478-aa26-450d-9126-62ef03e3481a

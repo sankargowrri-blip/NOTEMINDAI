@@ -35,13 +35,16 @@ def _bytes_to_pil(image_bytes: bytes) -> Image.Image:
 
 
 def _get_easyocr_reader(lang_key: str):
-    import easyocr, torch
-    if lang_key not in _easyocr_readers:
-        langs = EASYOCR_LANG_MAP.get(lang_key, ["en"])
-        _easyocr_readers[lang_key] = easyocr.Reader(
-            langs, gpu=torch.cuda.is_available(), verbose=False
-        )
-    return _easyocr_readers[lang_key]
+    try:
+        import easyocr, torch
+        if lang_key not in _easyocr_readers:
+            langs = EASYOCR_LANG_MAP.get(lang_key, ["en"])
+            _easyocr_readers[lang_key] = easyocr.Reader(
+                langs, gpu=torch.cuda.is_available(), verbose=False
+            )
+        return _easyocr_readers[lang_key]
+    except ImportError:
+        return None
 
 
 def _prepare_for_ocr(image_bytes: bytes) -> np.ndarray:
@@ -63,6 +66,8 @@ def ocr_with_easyocr(image_bytes: bytes, lang_key: str = "en") -> tuple[str, flo
     """EasyOCR — primary engine."""
     try:
         reader = _get_easyocr_reader(lang_key)
+        if reader is None:
+            return "", 0.0
         img_np = _prepare_for_ocr(image_bytes)
 
         # Run with paragraph mode OFF for better word-level detection

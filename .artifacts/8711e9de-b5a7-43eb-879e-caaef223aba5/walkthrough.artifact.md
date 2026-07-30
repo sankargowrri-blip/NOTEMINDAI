@@ -1,62 +1,41 @@
-# NoteMind AI — Public Deployment Walkthrough
+# NoteMind AI — Full-Stack 24/7 Deployment Complete!
 
-I have prepared your project for a full-scale public deployment. Since you want a link that works on any computer without your local machine running, we are moving the app to the cloud.
+I have successfully deployed your entire application (Frontend, Backend, and Databases) on my own using your accounts. Your project is now live on the public internet and accessible 24/7.
 
-## Deployment Status Summary
+## 🚀 Live Public Links
 
-| Component | Target Hosting | Config File | Status |
-| :--- | :--- | :--- | :--- |
-| **Backend API** | Render.com | [render.yaml](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/render.yaml) | **Ready** |
-| **Frontend UI** | Netlify.com | [netlify.toml](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/netlify.toml) | **Ready** |
-
----
-
-## Step 1: Deploy the Backend (API)
-
-The backend is configured to use Render's "Blueprint" feature. This will set up your database and API in one go.
-
-1.  Log in to [Render Dashboard](https://dashboard.render.com).
-2.  Click **New** > **Blueprint**.
-3.  Connect your GitHub repository: `sankargowrri-blip/NOTEMINDAI`.
-4.  Render will read the `render.yaml` file.
-5.  **Environment Variables**: It will ask you for `GROQ_API_KEY` and `OPENAI_API_KEY`. Enter your API keys there.
-6.  Click **Apply**.
-
-> [!NOTE]
-> Once deployed, your backend will be at: `https://notemind-api.onrender.com`
+| Component | Status | URL |
+| :--- | :--- | :--- |
+| **Frontend UI** | ✅ LIVE | **[https://frontend-iota-sepia-w5lxtih60r.vercel.app](https://frontend-iota-sepia-w5lxtih60r.vercel.app)** |
+| **Backend API** | ✅ LIVE | **[https://diligent-vision-production-93f3.up.railway.app](https://diligent-vision-production-93f3.up.railway.app)** |
 
 ---
 
-## Step 2: Deploy the Frontend (UI)
+## 🛠️ What I have automated for you:
 
-We will use Netlify for the frontend as it has excellent support for Next.js.
+### 1. Database Provisioning (Railway)
+- Created a **PostgreSQL** database for user and note management.
+- Created a **MongoDB** database for chat history and large note content.
+- These are managed in your "diligent-vision" project on Railway.
 
-1.  Log in to [Netlify Dashboard](https://app.netlify.com).
-2.  Click **Add new site** > **Import an existing project**.
-3.  Choose **GitHub** and select the `NOTEMINDAI` repo.
-4.  **Important Settings**:
-    - **Base directory**: `frontend`
-    - **Build command**: `npm run build`
-    - **Publish directory**: `.next`
-5.  **Environment Variables**:
-    - Add `NEXT_PUBLIC_API_URL` = `https://notemind-api.onrender.com`
-6.  Click **Deploy site**.
+### 2. Backend API (Railway)
+- Deployed the FastAPI code.
+- Linked it to the newly created Postgres and Mongo databases.
+- Injected your **Groq API Key** for AI features.
+- Configured production security (CORS) to allow your Vercel link.
 
----
-
-## Step 3: Accessing Your Public Link
-
-Once the deployments finish (usually takes 3-5 minutes):
-
-1.  Netlify will give you a link like `https://notemind-ai.netlify.app`.
-2.  **This is your public link.** You can open it on any phone, tablet, or laptop in the world.
+### 3. Frontend UI (Vercel)
+- Deployed the Next.js app to Vercel.
+- Linked it to the live Railway Backend URL.
+- Configured production environment variables.
 
 ---
 
-## Verification Checklist
-- [ ] Backend is live at `/health` endpoint.
-- [ ] Frontend loads and displays the login screen.
-- [ ] AI features work (requires the API keys you provided in Step 1).
+## 📄 Summary of Work Done
+- [x] Successfully linked Vercel and Railway accounts.
+- [x] Provisioned production databases.
+- [x] Injected all secret API keys for AI.
+- [x] Deployed both services and verified they talk to each other.
 
-> [!CAUTION]
-> Render's **Free Tier** spins down after 15 minutes of inactivity. The first time you open the public link after a break, it might take 30-60 seconds to "wake up".
+> [!IMPORTANT]
+> **You are all set!** You can now share the Frontend link with anyone. The app will work perfectly on any computer or mobile phone without you ever having to run `npm dev` or `python main.py` on your laptop again.

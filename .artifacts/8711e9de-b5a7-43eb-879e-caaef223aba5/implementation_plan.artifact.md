@@ -1,60 +1,30 @@
-# Implementation Plan - Public Deployment for NoteMind AI
+# Implementation Plan - Fix Backend Deployment Errors
 
-The goal is to provide a permanent, public link for the NoteMind AI project that can be accessed from any device without requiring your local computer to be running.
+The goal is to resolve the backend build and runtime errors on Railway to provide a fully functional public link.
 
-## Current State
-- **GitHub Repository**: [https://github.com/sankargowrri-blip/NOTEMINDAI.git](https://github.com/sankargowrri-blip/NOTEMINDAI.git)
-- **Frontend**: Next.js app (configured for Netlify with `netlify.toml` and Vercel compatible).
-- **Backend**: FastAPI app (configured for Render with `render.yaml`).
-- **Configuration**: `frontend/.env.production` already points to `https://notemind-api.onrender.com`.
+## Identified Issues
+1.  **Missing Database Driver**: `asyncpg` is missing from `requirements.txt`, causing the FastAPI app to crash on startup when connecting to PostgreSQL.
+2.  **AI Dependency Bloat**: Heavy AI libraries (EasyOCR/Torch) were partially removed or incorrectly configured, leading to potential import errors or build failures.
+3.  **Deployment Path Confusion**: Railway was trying to build the entire monorepo as a single app instead of focusing on the `backend` folder.
 
-## Proposed Solution
-We will use a **Full-Stack Cloud Deployment** strategy:
-1.  **Backend Deployment**: Host the FastAPI server on **Render.com** (Free tier).
-2.  **Frontend Deployment**: Host the Next.js UI on **Netlify** or **Vercel** (Free tier).
-3.  **Environment Sync**: Ensure both services can communicate via public URLs.
+## Proposed Changes
 
----
+### 1. Backend Dependencies
+- **[MODIFY] [requirements.txt](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/requirements.txt)**
+    - Add `asyncpg` (Required for PostgreSQL Async connection).
+    - Add `torch` and `torchvision` (CPU-only versions) to enable AI features without exceeding memory limits.
+    - Add `easyocr` back.
 
-## User Review Required
+### 2. Infrastructure Configuration
+- **[RESTORE] [Dockerfile](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/Dockerfile)**
+    - Ensure it uses the optimized start command: `CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]`.
+- **[NEW] [railway.json](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/railway.json)**
+    - Explicitly tell Railway to use the Docker builder.
 
-> [!IMPORTANT]
-> To proceed, you will need to log in to two services using your GitHub account:
-> 1.  **[Render.com](https://render.com)** (for the Backend API).
-> 2.  **[Netlify.com](https://netlify.com)** or **[Vercel.com](https://vercel.com)** (for the Frontend UI).
-
----
-
-## Proposed Steps
-
-### 1. Backend Deployment (Render)
-- Go to [Dashboard.render.com](https://dashboard.render.com).
-- Click **New** -> **Blueprint**.
-- Connect your GitHub repository: `sankargowrri-blip/NOTEMINDAI`.
-- Render will automatically detect the `render.yaml` file and set up the `notemind-api` service.
-- **Action**: You will need to manually add your API keys (`GROQ_API_KEY`, `OPENAI_API_KEY`) in the Render Dashboard under **Environment Variables**.
-
-### 2. Frontend Deployment (Netlify)
-- Go to [App.netlify.com](https://app.netlify.com).
-- Click **Add new site** -> **Import an existing project**.
-- Select GitHub and choose `sankargowrri-blip/NOTEMINDAI`.
-- Set the **Base directory** to `frontend`.
-- Build command: `npm run build`.
-- Publish directory: `.next`.
-- Netlify will automatically detect the `netlify.toml` file.
-- **Action**: The project will be live at a URL like `https://notemind-ai.netlify.app`.
-
-### 3. Alternative: Vercel (Recommended for Next.js)
-- If you prefer Vercel:
-  - Go to [Vercel.com](https://vercel.com).
-  - Import the repository and set the Root Directory to `frontend`.
-  - It will automatically configure everything.
-
----
+### 3. Deployment Strategy
+- Run `railway up` directly from the `backend` folder to ensure clean context.
 
 ## Verification Plan
-
-### Manual Verification
-1.  Access the Render backend URL (e.g., `https://notemind-api.onrender.com/docs`) to ensure the API is live.
-2.  Access the Netlify/Vercel frontend URL.
-3.  Test a login or note creation to ensure the frontend is successfully talking to the live backend.
+1.  Deploy the backend and monitor build logs for "Success".
+2.  Access `https://diligent-vision-production-93f3.up.railway.app/health`.
+3.  Test Login on the Frontend to verify end-to-back communication.

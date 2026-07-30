@@ -32,3 +32,5 @@ frontend/scratch*
 frontend/.netlify/
 
 
+.vercel
+.env*
