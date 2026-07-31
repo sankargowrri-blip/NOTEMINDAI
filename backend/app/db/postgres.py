@@ -24,6 +24,8 @@ if _use_sqlite:
 engine = create_async_engine(
     async_url,
     echo=settings.app_env == "development",
+    pool_pre_ping=True,
+    pool_recycle=300,
     # SQLite needs connect_args for async
     **({"connect_args": {"check_same_thread": False}} if _use_sqlite else {}),
 )
