@@ -8,11 +8,15 @@ logger = logging.getLogger(__name__)
 
 # Use SQLite for local dev if no PostgreSQL URL is configured
 _pg_url = settings.postgres_url
+
 if "localhost" in _pg_url or "127.0.0.1" in _pg_url:
-    # Try asyncpg first; fall back to aiosqlite for zero-config local dev
     async_url = _pg_url.replace("postgresql://", "postgresql+asyncpg://")
 else:
-    async_url = _pg_url.replace("postgresql://", "postgresql+asyncpg://")
+    # Ensure we use asyncpg driver and handle both postgres:// and postgresql://
+    if _pg_url.startswith("postgres://"):
+        async_url = _pg_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    else:
+        async_url = _pg_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 # SQLite fallback: if POSTGRES_URL is the default example, use SQLite
 _use_sqlite = _pg_url == "postgresql://notemind:notemind_secret@localhost:5432/notemind"
