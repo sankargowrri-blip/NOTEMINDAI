@@ -8,7 +8,7 @@ services:
     env: docker
     region: oregon
     plan: free
-    dockerContext: .
+    dockerContext: backend
     dockerfilePath: backend/Dockerfile
     envVars:
       - key: APP_ENV
