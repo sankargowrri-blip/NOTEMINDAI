@@ -1,30 +1,31 @@
-# Implementation Plan - Fix Backend Deployment Errors
+# Implementation Plan - Final Fix for Registration and Loading
 
-The goal is to resolve the backend build and runtime errors on Railway to provide a fully functional public link.
+The "Registration failed" issue is likely due to missing environment variables and a strict CORS policy that is blocking the browser's "handshake" with the server.
 
 ## Identified Issues
-1.  **Missing Database Driver**: `asyncpg` is missing from `requirements.txt`, causing the FastAPI app to crash on startup when connecting to PostgreSQL.
-2.  **AI Dependency Bloat**: Heavy AI libraries (EasyOCR/Torch) were partially removed or incorrectly configured, leading to potential import errors or build failures.
-3.  **Deployment Path Confusion**: Railway was trying to build the entire monorepo as a single app instead of focusing on the `backend` folder.
+1.  **Missing Secrets**: The latest `render.yaml` update accidentally removed the definitions for `GROQ_API_KEY`, `MONGO_URL`, and `POSTGRES_URL`. This causes the backend to default to local settings, which don't work in the cloud.
+2.  **CORS Handshake**: The Preflight (OPTIONS) request is being canceled. We need a more permissive CORS setup for production to ensure browsers don't block the data.
+3.  **Database Connection**: Ensure the server uses the `asyncpg` driver explicitly for Render's PostgreSQL.
 
 ## Proposed Changes
 
-### 1. Backend Dependencies
-- **[MODIFY] [requirements.txt](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/requirements.txt)**
-    - Add `asyncpg` (Required for PostgreSQL Async connection).
-    - Add `torch` and `torchvision` (CPU-only versions) to enable AI features without exceeding memory limits.
-    - Add `easyocr` back.
+### 1. Infrastructure
+- **[MODIFY] [render.yaml](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/render.yaml)**
+    - Restore all environment variables (`GROQ_API_KEY`, `MONGO_URL`, `POSTGRES_URL`, `SECRET_KEY`, etc.).
+    - Ensure they are correctly linked to the database.
 
-### 2. Infrastructure Configuration
-- **[RESTORE] [Dockerfile](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/Dockerfile)**
-    - Ensure it uses the optimized start command: `CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]`.
-- **[NEW] [railway.json](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/railway.json)**
-    - Explicitly tell Railway to use the Docker builder.
+### 2. Backend Security
+- **[MODIFY] [main.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/main.py)**
+    - Re-enable `allow_credentials=True`.
+    - Explicitly list the Vercel production URL and localhost for development.
+    - Add a `GET /` health check that matches what Render's load balancer expects.
 
-### 3. Deployment Strategy
-- Run `railway up` directly from the `backend` folder to ensure clean context.
+### 3. Database
+- **[MODIFY] [postgres.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/db/postgres.py)**
+    - Ensure `postgres://` is correctly converted to `postgresql+asyncpg://`.
 
 ## Verification Plan
-1.  Deploy the backend and monitor build logs for "Success".
-2.  Access `https://diligent-vision-production-93f3.up.railway.app/health`.
-3.  Test Login on the Frontend to verify end-to-back communication.
+1.  Push the fix.
+2.  User clicks "Manual Deploy" -> "Clear Cache and Deploy".
+3.  Verify the **Environment** tab on Render shows all keys are present.
+4.  Test Registration on the Vercel link.

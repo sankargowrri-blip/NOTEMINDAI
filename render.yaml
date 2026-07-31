@@ -9,7 +9,7 @@ services:
     region: oregon
     plan: free
     dockerContext: backend
-    dockerfilePath: backend/Dockerfile
+    dockerfilePath: Dockerfile
     envVars:
       - key: APP_ENV
         value: production

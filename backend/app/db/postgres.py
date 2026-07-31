@@ -13,10 +13,13 @@ if "localhost" in _pg_url or "127.0.0.1" in _pg_url:
     async_url = _pg_url.replace("postgresql://", "postgresql+asyncpg://")
 else:
     # Ensure we use asyncpg driver and handle both postgres:// and postgresql://
+    # This is critical for Render/Heroku style URLs
     if _pg_url.startswith("postgres://"):
         async_url = _pg_url.replace("postgres://", "postgresql+asyncpg://", 1)
-    else:
+    elif _pg_url.startswith("postgresql://"):
         async_url = _pg_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    else:
+        async_url = _pg_url
 
 # SQLite fallback: if POSTGRES_URL is the default example, use SQLite
 _use_sqlite = _pg_url == "postgresql://notemind:notemind_secret@localhost:5432/notemind"
