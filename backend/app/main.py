@@ -1,6 +1,6 @@
 from __future__ import annotations
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
@@ -30,8 +30,10 @@ from app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logging.info("Starting up NoteMind AI...")
     await init_db()
     yield
+    logging.info("Shutting down NoteMind AI...")
 
 app = FastAPI(
     title="NoteMind AI",
@@ -40,7 +42,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Production Logging Middleware
+# Robust Production Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("notemind")
 
@@ -49,13 +51,14 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     duration = time.time() - start_time
-    logger.info(f"PROD_LOG: {request.method} {request.url.path} - Status: {response.status_code} - {duration:.2f}s")
+    logger.info(f"PROD_LOG: {request.method} {request.url.path} - Status: {response.status_code} - Duration: {duration:.2f}s")
     return response
 
+# permissive CORS for production stability
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -85,7 +88,7 @@ app.include_router(voice.router, prefix="/api/voice", tags=["Voice AI"])
 async def root():
     return {"message": "NoteMind AI API is running", "version": "1.0.0"}
 
-@app.head("/")
+@app.head("/", tags=["Health"])
 async def root_head():
     return None
 
