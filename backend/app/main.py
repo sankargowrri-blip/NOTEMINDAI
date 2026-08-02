@@ -85,6 +85,10 @@ app.include_router(voice.router, prefix="/api/voice", tags=["Voice AI"])
 async def root():
     return {"message": "NoteMind AI API is running", "version": "1.0.0"}
 
+@app.head("/")
+async def root_head():
+    return None
+
 @app.get("/health", tags=["Health"])
 async def health():
     return {"status": "ok"}
