@@ -1,14 +1,15 @@
 from __future__ import annotations
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 import os
 import time
 import logging
 
 from app.config import settings
-from app.db.postgres import init_db
+from app.db.postgres import init_db, get_db
 from app.routers import (
     auth,
     users,
@@ -42,7 +43,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Production Logging
+# Production Logging Middleware
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("notemind")
 
@@ -51,22 +52,16 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     duration = time.time() - start_time
-    logger.info(f"API_LOG: {request.method} {request.url.path} - Status: {response.status_code} - {duration:.2f}s")
+    logger.info(f"PROD_LOG: {request.method} {request.url.path} - Status: {response.status_code} - Duration: {duration:.2f}s")
     return response
 
-# FIXED CORS: Explicit origins for credentialed requests (Required for browser handshake)
+# Permissive CORS for cloud-to-cloud communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://frontend-iota-sepia-w5lxtih60r.vercel.app",
-        "https://frontend-pnitfvp2j-sankargowrri-4781s-projects.vercel.app",
-        "https://frontend-ptcte9pqy-sankargowrri-4781s-projects.vercel.app",
-        "http://localhost:3000",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
 
 upload_dir = settings.local_upload_dir
@@ -101,3 +96,18 @@ async def root_head():
 @app.get("/health", tags=["Health"])
 async def health():
     return {"status": "ok"}
+
+@app.get("/health/db", tags=["Health"])
+async def health_db():
+    try:
+        from sqlalchemy import text
+        async for db in get_db():
+            await db.execute(text("SELECT 1"))
+            break
+        return {"status": "ok", "database": "connected"}
+    except Exception as e:
+        logging.error(f"DB Health check failed: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "error", "message": f"Database connection failed: {str(e)}"}
+        )
