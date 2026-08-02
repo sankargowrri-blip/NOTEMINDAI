@@ -1,14 +1,10 @@
-# Task List - Fix Backend Deployment
+# Task List - Final Render Path Fix
 
-- `[ ]` Fix Backend Dependencies
-    - `[ ]` Add `asyncpg` to `requirements.txt`
-    - `[ ]` Add CPU-optimized `torch` and `easyocr`
-- `[ ]` Restore Infrastructure Files
-    - `[ ]` Restore `backend/Dockerfile`
-    - `[ ]` Create `backend/railway.json`
-- `[ ]` Execute Deployment
-    - `[ ]` Run `railway up` from the `backend` folder
-    - `[ ]` Monitor logs for successful startup
-- `[ ]` Verify Frontend Connection
-    - `[ ]` Check /health endpoint
-    - `[ ]` Verify Vercel Frontend talks to Railway Backend
+- `[x]` Update Infrastructure Configs
+    - `[x]` Update `render.yaml` with root context
+    - `[x]` Update `backend/Dockerfile` with backend paths
+- `[x]` Push to GitHub
+    - `[x]` Push changes to trigger Render build
+- `[/]` Monitor Deployment
+    - `[ ]` Check Render logs for success
+    - `[ ]` Verify live backend link
