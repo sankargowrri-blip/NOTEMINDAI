@@ -37,23 +37,32 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+import logging
+logger = logging.getLogger("notemind")
+
 @router.post("/register", status_code=201)
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == body.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    user = User(
-        email=body.email,
-        display_name=body.display_name,
-        hashed_password=hash_password(body.password),
-        role=body.role,
-        is_email_verified=False,
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    # In production: send verification email here
-    return {"message": "Registration successful. Please verify your email.", "user_id": user.id}
+    try:
+        logger.info(f"REG_ATTEMPT: email={body.email}")
+        result = await db.execute(select(User).where(User.email == body.email))
+        if result.scalar_one_or_none():
+            logger.warning(f"REG_FAILED: Email {body.email} already exists")
+            raise HTTPException(status_code=400, detail="Email already registered")
+        user = User(
+            email=body.email,
+            display_name=body.display_name,
+            hashed_password=hash_password(body.password),
+            role=body.role,
+            is_email_verified=False,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        logger.info(f"REG_SUCCESS: id={user.id}")
+        return {"message": "Registration successful. Please verify your email.", "user_id": user.id}
+    except Exception as e:
+        logger.error(f"REG_CRASH: {str(e)}")
+        raise e
 
 
 @router.post("/login")
