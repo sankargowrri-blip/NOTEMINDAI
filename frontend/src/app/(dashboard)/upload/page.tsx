@@ -37,7 +37,7 @@ export default function UploadPage() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "image/*": [".jpg", ".jpeg", ".png"], "application/pdf": [".pdf"] },
-    maxSize: 20 * 1024 * 1024,
+    maxSize: 1024 * 1024 * 1024, // 1GB
   });
 
   const removeFile = (index: number) => {
@@ -51,6 +51,8 @@ export default function UploadPage() {
 
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
+      if (f.status === "done") continue;
+
       setFiles((prev) => prev.map((x, idx) => idx === i ? { ...x, status: "uploading" } : x));
       try {
         const formData = new FormData();
@@ -59,38 +61,33 @@ export default function UploadPage() {
         formData.append("subject", subject);
         formData.append("semester", semester);
         formData.append("title", f.file.name.replace(/\.[^.]+$/, ""));
+
         const res = await uploadApi.upload(formData);
         lastNoteId.push(res.data.note_id);
         setFiles((prev) => prev.map((x, idx) => idx === i ? { ...x, status: "done", noteId: res.data.note_id } : x));
-        if (res.data.no_text_detected) {
-          toast("No text detected. Try a clearer photo with better lighting.", { icon: "⚠️" });
-        } else if (res.data.low_confidence_warning) {
-          toast("Note uploaded! Some text may be inaccurate — check the note and edit if needed.", { icon: "ℹ️" });
-        } else {
-          toast.success(`Note uploaded successfully!`);
-        }
+
+        toast.success(`'${f.file.name}' uploaded successfully!`);
       } catch (err: unknown) {
         const status = (err as { response?: { status?: number } })?.response?.status;
-        const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Upload failed";
+        const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Upload failed. Server may be processing...";
+
         if (status === 409) {
-          // Duplicate — treat as success since the note already exists
           setFiles((prev) => prev.map((x, idx) => idx === i ? { ...x, status: "done" } : x));
-          toast("This file already exists in your notes. Opening existing note.", { icon: "ℹ️" });
+          toast("This file already exists in your notes.", { icon: "ℹ️" });
         } else {
           setFiles((prev) => prev.map((x, idx) => idx === i ? { ...x, status: "error", error: msg } : x));
-          toast.error(msg);
+          toast.error(`${f.file.name}: ${msg}`);
         }
       }
     }
 
     setUploading(false);
     if (lastNoteId.length > 0) {
-      toast.success(`${lastNoteId.length} note(s) uploaded successfully!`);
-      setTimeout(() => router.push("/notes"), 1500);
+      setTimeout(() => router.push("/notes"), 2000);
     }
   };
 
-  const pendingCount = files.filter((f) => f.status === "pending").length;
+  const pendingCount = files.filter((f) => f.status === "pending" || f.status === "error").length;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
@@ -115,7 +112,7 @@ export default function UploadPage() {
         <p className="text-gray-700 dark:text-gray-300 font-medium">
           {isDragActive ? "Drop files here..." : "Drag & drop files here, or click to browse"}
         </p>
-        <p className="text-sm text-gray-400 mt-1">JPG, JPEG, PNG, PDF • Max 20 MB per file</p>
+        <p className="text-sm text-gray-400 mt-1">JPG, JPEG, PNG, PDF • Max 1 GB per file</p>
       </div>
 
       {/* Options */}
@@ -157,7 +154,7 @@ export default function UploadPage() {
                 {f.status === "uploading" && <Loader2 className="animate-spin text-brand-500" size={18} />}
                 {f.status === "done" && <CheckCircle className="text-green-500" size={18} />}
                 {f.status === "error" && <span className="text-xs text-red-500">{f.error}</span>}
-                {f.status === "pending" && (
+                {(f.status === "pending" || f.status === "error") && (
                   <button onClick={() => removeFile(i)} className="text-gray-400 hover:text-red-500 transition-colors">
                     <X size={18} />
                   </button>
