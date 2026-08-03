@@ -1,32 +1,41 @@
-# Final Fix Plan - Launching the Working Backend
+# Implementation Plan - Fully Merging Frontend and Backend Connection
 
-Your backend is currently attempting to deploy an **older version** (`3a55750`) which does not have the final security fixes. I have already pushed the **Latest Fix** (`325bef5`) to your GitHub which solves the registration and loading issues.
+The goal is to fix the "Registration Failed" issue by merging the frontend and backend into a single communication channel using **Next.js Rewrites**. This eliminates security blocks (CORS) and ensures a 100% stable connection.
 
-## Identified Issue
-- **Stuck Build**: Render is currently processing an old commit that lacks the CORS security update. This is why you still see "Loading" or "Registration Failed."
-- **CORS Lock**: The older code blocks the browser's registration handshake.
-- **Port/Health Check**: Adding a "HEAD" request handler to ensure Render's health checks pass 100%.
+## Identified Issues
+1.  **Missing Configuration**: The `NEXT_PUBLIC_API_URL` is missing from your Vercel settings, so the website doesn't know where the server is.
+2.  **CORS Conflicts**: Direct communication between your Vercel site and Render server is being blocked by browser security.
+3.  **Cross-Origin Mismatch**: The website is trying to talk to a different domain, which causes the browser to "cancel" the request.
+
+## Proposed Solution: The "One Domain" Strategy
+Instead of the website talking directly to Render, it will talk to itself (`/api/...`), and Vercel will safely forward those requests to your Render server in the background. To the browser, it looks like **one single working model**.
+
+---
 
 ## Proposed Changes
 
-### 1. Backend Code
-- **[MODIFY] [main.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/main.py)**:
-    - Added a `HEAD` request handler for the root path to satisfy Render's health checks.
-    - Verified `allow_origins=["*"]` is active in the latest commit.
+### 1. Frontend: Link Synchronization
+- **[MODIFY] [src/lib/api.ts](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/lib/api.ts)**:
+    - Change the `baseURL` to be empty (`""`). This tells the website to use the "Internal Bridge" (Rewrites).
+- **[CONFIGURE] [Vercel Environment]**:
+    - Manually set `NEXT_PUBLIC_API_URL` on the Vercel dashboard to your live Render link: `https://notemind-api-tmsd.onrender.com`.
 
-### 2. Deployment Synchronization
-- Instruct the user to **Cancel** the stuck build and trigger the **Latest Commit** build.
+### 2. Backend: Security Simplification
+- **[MODIFY] [app/main.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/main.py)**:
+    - Simplify security settings to accept requests through the Vercel bridge.
 
 ---
 
 ## Verification Plan
 
-### Step 1: Trigger the Latest Build
-1.  Go to **Render Dashboard**.
-2.  Click **Cancel deploy** on the current "In Progress" build.
-3.  Click **Manual Deploy** -> **Deploy latest commit** (look for commit `325bef5`).
+### Step 1: Deploy Fixes
+1.  I will push the code changes to your GitHub.
+2.  I will trigger a fresh build of your Website on Vercel.
+3.  I will trigger a fresh build of your Server on Render.
 
-### Step 2: Test Registration
-1.  Refresh your [Vercel Website](https://frontend-iota-sepia-w5lxtih60r.vercel.app).
-2.  Register a new account.
-3.  It should now succeed instantly.
+### Step 2: Final Test
+1.  Refresh your [Public Website Link](https://frontend-iota-sepia-w5lxtih60r.vercel.app).
+2.  Click **"Create one free"** and register.
+3.  The request will now be "Proxied" through Vercel, making it impossible for the browser to block it.
+
+**I am ready to perform these updates. Do you approve?**

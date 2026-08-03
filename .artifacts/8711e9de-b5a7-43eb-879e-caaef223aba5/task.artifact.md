@@ -1,10 +1,12 @@
-# Task List - Final Render Path Fix
+# Task List - Final Model Connection Fix
 
-- `[x]` Update Infrastructure Configs
-    - `[x]` Update `render.yaml` with root context
-    - `[x]` Update `backend/Dockerfile` with backend paths
-- `[x]` Push to GitHub
-    - `[x]` Push changes to trigger Render build
-- `[/]` Monitor Deployment
-    - `[ ]` Check Render logs for success
-    - `[ ]` Verify live backend link
+- `[/]` Synchronize Frontend Settings
+    - `[ ]` Set `NEXT_PUBLIC_API_URL` in Vercel Cloud
+    - `[ ]` Update `src/lib/api.ts` to use relative paths (Internal Bridge)
+- `[ ]` Simplify Backend Security
+    - `[ ]` Update `main.py` for cloud bridge compatibility
+- `[ ]` Trigger Production Builds
+    - `[ ]` Redeploy Frontend on Vercel
+    - `[ ]` Redeploy Backend on Render
+- `[ ]` Verify "One Domain" Connection
+    - `[ ]` Test Registration on live site

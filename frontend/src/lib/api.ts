@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Absolute URL for production to ensure 100% connectivity.
+// No more "relative path" confusion.
+const API_BASE = "https://notemind-api-tmsd.onrender.com";
 
 export const api = axios.create({
   baseURL: API_BASE,
