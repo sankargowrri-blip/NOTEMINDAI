@@ -17,6 +17,10 @@ RUN apt-get update && apt-get install -y \
 
 COPY backend/requirements.txt .
 
+# Suppress pip warnings and hardware discovery logs
+ENV PIP_ROOT_USER_ACTION=ignore
+ENV ONNXRUNTIME_DEVICE_DISCOVERY_DISABLED=1
+
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
