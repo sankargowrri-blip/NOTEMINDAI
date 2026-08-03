@@ -33,11 +33,24 @@ class ChatRequest(BaseModel):
 async def chat(
     body: ChatRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    note_text = ""
+    if body.note_id:
+        note_text = await _get_note_text(body.note_id, current_user, db)
+    else:
+        # Get the latest note text if no specific ID provided
+        latest = await db.execute(
+            select(Note).where(Note.owner_id == current_user.id).order_by(Note.created_at.desc()).limit(1)
+        )
+        note = latest.scalar_one_or_none()
+        if note:
+            note_text = note.refined_text or note.raw_ocr_text or ""
+
     result = ai_service.rag_chat(
         user_id=str(current_user.id),
         question=body.question,
-        note_id=str(body.note_id) if body.note_id else None,
+        note_text=note_text,
     )
     return result
 
