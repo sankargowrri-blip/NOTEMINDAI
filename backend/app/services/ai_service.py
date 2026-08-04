@@ -8,31 +8,32 @@ from typing import List, Dict, Optional
 logger = logging.getLogger(__name__)
 
 async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Optional[List[Dict]] = None) -> str:
+    """Call Groq using Async client for better performance."""
     groq_key = getattr(settings, "groq_api_key", "")
     if groq_key and groq_key.startswith("gsk_"):
         try:
-            from groq import Groq
-            client = Groq(api_key=groq_key)
+            from groq import AsyncGroq
+            client = AsyncGroq(api_key=groq_key)
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
-                chat_messages.extend(messages[-5:]) # Keep last 5 for context
+                # Filter out system messages from history to avoid conflicts
+                history = [m for m in messages if m.get("role") != "system"]
+                chat_messages.extend(history[-5:]) 
             chat_messages.append({"role": "user", "content": user})
             
-            resp = client.chat.completions.create(
+            resp = await client.chat.completions.create(
                 model="llama-3.1-8b-instant",
                 messages=chat_messages,
                 max_tokens=max_tokens,
-                temperature=0.3, # Slightly higher for more conversational tone in chat
+                temperature=0.3,
             )
             return resp.choices[0].message.content.strip()
         except Exception as e:
-            logger.error(f"AI_ERROR: {e}")
+            logger.error(f"GROQ_ERROR: {str(e)}")
     return "AI_UNAVAILABLE"
 
 async def rag_chat(user_id: str, question: str, note_text: str = "", history: List[Dict] = None) -> dict:
-    # 1. Search notes first
-    found_in_notes = False
     system = (
         "You are NoteMind AI. Answer primarily using the note text provided. "
         "If you use information from the notes, prefix it with [Notes]. "
@@ -41,19 +42,20 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     
     user_prompt = f"NOTE TEXT:\n{note_text}\n\nQUESTION: {question}"
     
-    # 2. Check if we need web search (simple heuristic)
-    web_results = []
-    if not note_text or len(note_text) < 50:
+    # Heuristic: If note text is too short, search the web
+    is_web = False
+    if not note_text or len(note_text) < 100:
         web_results = await search_tool.search(question)
         if web_results:
             user_prompt += f"\n\nWEB SEARCH RESULTS:\n{json.dumps(web_results)}"
+            is_web = True
 
     answer = await _chat(system, user_prompt, messages=history)
     
     return {
         "answer": answer,
-        "sources": ["notes"] if "[Notes]" in answer else (["web"] if "[Web]" in answer else []),
-        "is_web": "[Web]" in answer
+        "sources": ["notes"] if "[Notes]" in answer else (["web"] if "[Web]" in answer or is_web else []),
+        "is_web": "[Web]" in answer or is_web
     }
 
 async def generate_summary(text: str, mode: str = "bullet") -> str:
@@ -73,7 +75,9 @@ async def extract_keywords(text: str) -> dict:
     try:
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         return json.loads(match.group()) if match else {"keywords":[], "definitions":[]}
-    except: return {"keywords":[], "definitions":[]}
+    except Exception as e:
+        logger.error(f"JSON_PARSE_ERROR in extract_keywords: {e}")
+        return {"keywords":[], "definitions":[]}
 
 async def translate_note(text: str, target_language: str) -> str:
     system = f"Translate to {target_language}. Use ONLY the text provided."
@@ -89,8 +93,12 @@ async def generate_big_questions(text: str) -> List[Dict]:
     raw = await _chat(system, prompt)
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
-        return json.loads(match.group()) if match else []
-    except: return []
+        if match:
+            return json.loads(match.group())
+        return []
+    except Exception as e:
+        logger.error(f"JSON_PARSE_ERROR in big_questions: {e}")
+        return []
 
 async def generate_mind_map(text: str) -> dict:
     system = "Generate a Mermaid mindmap for the following text. Return ONLY the mermaid code starting with mindmap."

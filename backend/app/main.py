@@ -99,15 +99,28 @@ async def health():
 
 @app.get("/health/db", tags=["Health"])
 async def health_db():
+    health_status = {"status": "ok", "postgres": "disconnected", "mongodb": "disconnected"}
+    
+    # Check Postgres
     try:
         from sqlalchemy import text
         async for db in get_db():
             await db.execute(text("SELECT 1"))
+            health_status["postgres"] = "connected"
             break
-        return {"status": "ok", "database": "connected"}
     except Exception as e:
-        logging.error(f"DB Health check failed: {e}")
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "error", "message": f"Database connection failed: {str(e)}"}
-        )
+        logging.error(f"Postgres Health check failed: {e}")
+        health_status["status"] = "error"
+
+    # Check MongoDB
+    try:
+        from app.db.mongo import get_mongo_client
+        client = get_mongo_client()
+        await client.admin.command('ping')
+        health_status["mongodb"] = "connected"
+    except Exception as e:
+        logging.error(f"MongoDB Health check failed: {e}")
+        health_status["status"] = "error"
+
+    status_code = status.HTTP_200_OK if health_status["status"] == "ok" else status.HTTP_503_SERVICE_UNAVAILABLE
+    return JSONResponse(status_code=status_code, content=health_status)

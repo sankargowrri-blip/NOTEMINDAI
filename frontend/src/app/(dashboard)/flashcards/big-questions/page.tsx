@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { aiApi, notesApi } from "@/lib/api";
 import { BookOpen, Loader2, ChevronDown, ChevronUp, Sparkles, AlertCircle } from "lucide-react";
@@ -22,23 +22,23 @@ function BigQuestionsContent() {
   const [loading, setLoading] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
-  useEffect(() => {
-    const fetchNotes = async () => {
-      try {
-        const res = await notesApi.list();
-        const notesList = res.data?.notes || (Array.isArray(res.data) ? res.data : []);
-        setNotes(notesList);
+  const fetchNotes = useCallback(async () => {
+    try {
+      const res = await notesApi.list();
+      const notesList = res.data?.notes || (Array.isArray(res.data) ? res.data : []);
+      setNotes(notesList);
 
-        // If no note selected yet, select the first one available
-        if (!selectedNoteId && notesList && notesList.length > 0) {
-          setSelectedNoteId(notesList[0]?.id || null);
-        }
-      } catch (e) {
-        console.error("Failed to fetch notes", e);
+      if (!selectedNoteId && notesList && notesList.length > 0) {
+        setSelectedNoteId(notesList[0]?.id || null);
       }
-    };
-    fetchNotes();
+    } catch (e) {
+      console.error("Failed to fetch notes", e);
+    }
   }, [selectedNoteId]);
+
+  useEffect(() => {
+    fetchNotes();
+  }, [fetchNotes]);
 
   const generate = async () => {
     if (!selectedNoteId) {
@@ -50,13 +50,16 @@ function BigQuestionsContent() {
     try {
       const res = await aiApi.bigQuestions(selectedNoteId);
       const data = res.data?.questions || [];
-      setQuestions(Array.isArray(data) ? data : []);
-      if (data.length === 0) {
-        toast("No questions generated. The note may be too short.", { icon: "ℹ️" });
+      if (Array.isArray(data) && data.length > 0) {
+        setQuestions(data);
+        toast.success("Questions generated!");
+      } else {
+        toast("No questions generated. The note may be too short or AI is busy.", { icon: "ℹ️" });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to generate questions", e);
-      toast.error("Failed to generate questions. Please try again.");
+      const msg = e.response?.data?.detail || "AI server is busy. Please try again in a minute.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -96,8 +99,8 @@ function BigQuestionsContent() {
         </div>
       </div>
 
-      {!loading && (!questions || questions.length === 0) && (
-        <div className="card p-12 flex flex-col items-center text-center space-y-4">
+      {!loading && questions.length === 0 && (
+        <div className="card p-12 flex flex-col items-center text-center space-y-4 shadow-sm">
           <div className="w-16 h-16 rounded-full bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center text-brand-600">
             <Sparkles size={32} />
           </div>
@@ -122,8 +125,8 @@ function BigQuestionsContent() {
       )}
 
       <div className="space-y-4">
-        {Array.isArray(questions) && questions.map((q, i) => (
-          <div key={i} className="card overflow-hidden transition-all duration-300">
+        {questions.map((q, i) => (
+          <div key={i} className="card overflow-hidden transition-all duration-300 shadow-sm border hover:border-brand-300 dark:hover:border-brand-700">
             <button
               onClick={() => setExpandedIndex(expandedIndex === i ? null : i)}
               className="w-full text-left p-6 flex items-start justify-between gap-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
@@ -139,28 +142,27 @@ function BigQuestionsContent() {
               {expandedIndex === i ? <ChevronUp className="text-gray-400 shrink-0" size={20} /> : <ChevronDown className="text-gray-400 shrink-0" size={20} />}
             </button>
 
-            <div className={clsx(
-              "px-6 pb-6 space-y-4 transition-all",
-              expandedIndex === i ? "block" : "hidden"
-            )}>
-              <div className="h-px bg-gray-100 dark:bg-gray-800" />
-              <div className="space-y-4">
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <AlertCircle size={16} className="text-brand-500" />
-                  Proposed Answer Structure:
-                </h4>
-                <ul className="space-y-3">
-                  {q.outline?.map((step, si) => (
-                    <li key={si} className="flex gap-3 text-sm text-gray-600 dark:text-gray-400">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-brand-50 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 flex items-center justify-center text-[11px] font-bold border border-brand-100 dark:border-brand-800">
-                        {si + 1}
-                      </span>
-                      <p className="pt-0.5">{step}</p>
-                    </li>
-                  ))}
-                </ul>
+            {expandedIndex === i && (
+              <div className="px-6 pb-6 space-y-4 animate-slide-up">
+                <div className="h-px bg-gray-100 dark:bg-gray-800" />
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <AlertCircle size={16} className="text-brand-500" />
+                    Proposed Answer Structure:
+                  </h4>
+                  <ul className="space-y-3">
+                    {q.outline?.map((step, si) => (
+                      <li key={si} className="flex gap-3 text-sm text-gray-600 dark:text-gray-400">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-brand-50 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 flex items-center justify-center text-[11px] font-bold border border-brand-100 dark:border-brand-800">
+                          {si + 1}
+                        </span>
+                        <p className="pt-0.5">{step}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
