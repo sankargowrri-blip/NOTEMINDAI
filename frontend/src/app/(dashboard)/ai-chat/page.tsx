@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { aiApi } from "@/lib/api";
 import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark } from "lucide-react";
@@ -23,7 +23,7 @@ const PROMPT_MODES = [
   "Compare the main concepts",
 ];
 
-export default function AIChatPage() {
+function AIChatContent() {
   const searchParams = useSearchParams();
   const noteId = searchParams.get("note");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -43,9 +43,9 @@ export default function AIChatPage() {
     const loadHistory = async () => {
       try {
         const res = await aiApi.history();
-        if (res.data.length > 0) {
+        if (Array.isArray(res.data) && res.data.length > 0) {
           const lastSession = res.data[0];
-          setMessages(lastSession.messages);
+          setMessages(lastSession.messages || []);
           setSessionId(lastSession.session_id);
         } else {
           setMessages([{
@@ -55,6 +55,10 @@ export default function AIChatPage() {
         }
       } catch (e) {
         console.error("Failed to load history", e);
+        setMessages([{
+          role: "assistant",
+          content: "Hi! I'm your AI study assistant. Ask me anything about your uploaded notes, or use one of the quick prompts below.",
+        }]);
       }
     };
     loadHistory();
@@ -84,12 +88,16 @@ export default function AIChatPage() {
   }, [messages]);
 
   const speak = (text: string) => {
-    if (isMuted) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+    if (isMuted || typeof window === "undefined" || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.error("Speech synthesis failed", e);
+    }
   };
 
   const toggleListening = () => {
@@ -97,12 +105,19 @@ export default function AIChatPage() {
       recognition.current?.stop();
     } else {
       setIsListening(true);
-      recognition.current?.start();
+      try {
+        recognition.current?.start();
+      } catch (e) {
+        setIsListening(false);
+      }
     }
   };
 
   const handleBookmark = async (content: string) => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      toast.error("Please start a conversation first");
+      return;
+    }
     try {
       await aiApi.bookmark(sessionId, content, noteId ? Number(noteId) : undefined);
       toast.success("Saved to bookmarks!");
@@ -119,17 +134,17 @@ export default function AIChatPage() {
     setLoading(true);
     try {
       const res = await aiApi.chat(q, noteId ? Number(noteId) : undefined, sessionId);
-      const answer = res.data.answer;
+      const answer = res.data?.answer || "I'm sorry, I couldn't process that.";
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
           content: answer,
-          sources: res.data.sources,
-          is_web: res.data.is_web
+          sources: res.data?.sources,
+          is_web: res.data?.is_web
         },
       ]);
-      setSessionId(res.data.session_id);
+      setSessionId(res.data?.session_id);
       speak(answer);
     } catch {
       setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I encountered an error. Please try again." }]);
@@ -139,27 +154,27 @@ export default function AIChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-130px)] max-w-5xl mx-auto w-full animate-fade-in">
-      <div className="flex items-center justify-between mb-4 px-2">
+    <div className="flex flex-col h-[calc(100vh-130px)] max-w-5xl mx-auto w-full animate-fade-in px-2 md:px-4">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Brain className="text-brand-600" size={24} />
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">AI Study Assistant</h1>
           {noteId && (
-            <span className="badge bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 ml-2">
+            <span className="badge bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 ml-2 text-[10px]">
               Note #{noteId}
             </span>
           )}
         </div>
         <button
           onClick={() => setIsMuted(!isMuted)}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
         >
           {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
       </div>
 
       {/* Quick prompts */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4 px-2">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4">
         {PROMPT_MODES.map((p) => (
           <button
             key={p}
@@ -172,11 +187,11 @@ export default function AIChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-6 px-2 md:px-4 pb-4">
+      <div className="flex-1 overflow-y-auto space-y-6 pb-4 scroll-smooth">
         {messages.map((msg, i) => (
           <div key={i} className={clsx("flex gap-3", msg.role === "user" ? "flex-row-reverse" : "")}>
             <div className={clsx(
-              "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm",
+              "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm transition-transform hover:scale-105",
               msg.role === "assistant" ? "bg-brand-600 text-white" : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300"
             )}>
               {msg.role === "assistant" ? <Sparkles size={18} /> : <User size={18} />}
@@ -234,10 +249,11 @@ export default function AIChatPage() {
       </div>
 
       {/* Input */}
-      <div className="mt-2 p-2 md:p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg">
+      <div className="mt-2 p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg mb-2">
         <div className="flex gap-2 items-center">
           <button
             onClick={toggleListening}
+            title={isListening ? "Stop listening" : "Ask with voice"}
             className={clsx(
               "p-3 rounded-xl transition-all",
               isListening
@@ -267,5 +283,13 @@ export default function AIChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AIChatPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-brand-500" /></div>}>
+      <AIChatContent />
+    </Suspense>
   );
 }
