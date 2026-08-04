@@ -68,8 +68,14 @@ export const uploadApi = {
 
 // ── AI Assistant ──────────────────────────────────────────────────────────────
 export const aiApi = {
-  chat: (question: string, noteId?: number) =>
-    api.post("/api/ai/chat", { question, note_id: noteId }),
+  chat: (question: string, noteId?: number, sessionId?: string) =>
+    api.post("/api/ai/chat", { question, note_id: noteId, session_id: sessionId }),
+  history: () => api.get("/api/ai/history"),
+  bookmark: (sessionId: string, content: string, noteId?: number) =>
+    api.post("/api/ai/bookmarks", { session_id: sessionId, message_content: content, note_id: noteId }),
+  getBookmarks: () => api.get("/api/ai/bookmarks"),
+  bigQuestions: (noteId: number) =>
+    api.post("/api/ai/big-questions", { note_id: noteId }),
   summary: (noteId: number, mode: string) =>
     api.post("/api/ai/summary", { note_id: noteId, mode }),
   simplify: (noteId: number, level: string) =>

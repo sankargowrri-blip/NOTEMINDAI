@@ -1,35 +1,50 @@
-# Implementation Plan - Fully Functional Note-Locked AI
+# Implementation Plan - NoteMind AI Mega Upgrade
 
-The goal is to resolve the "Key Missing" error, ensure permanent memory for uploaded notes, and strictly lock the AI responses to the PDF content only.
+This plan outlines the transformation of NoteMind AI into a full-scale AI Study Platform with Voice interaction, Internet-augmented intelligence, and a fully responsive professional UI.
 
-## Identified Issues
-1.  **Groq Key Injection**: The backend is failing to retrieve the `GROQ_API_KEY` from the environment.
-2.  **Vector Persistence**: `chroma_db` is local and gets wiped on Render. Notes "disappear" from AI context.
-3.  **Prompting**: AI is too broad; needs strict grounding in note text.
-4.  **File Size**: 20MB limit is too small for 1GB requirement.
+## User Review Required
+
+> [!IMPORTANT]
+> **External Search API**: To enable internet-enhanced search, we will need to integrate a search tool (e.g., **Tavily** or **DuckDuckGo API**). Tavily is recommended for educational accuracy.
+> **Voice Implementation**: I will use the **Web Speech API** for STT (Speech-to-Text) and TTS (Text-to-Speech) as it works natively in browsers without extra server costs.
 
 ## Proposed Changes
 
-### 1. Persistence (The "Never Forget" Fix)
-- **[MODIFY] [vector_store.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/db/vector_store.py)**:
-    - Shift to using **MongoDB** as the source of truth for note chunks.
-    - Implement a "Re-indexing" check on startup to ensure ChromaDB (in-memory) always has the latest notes from MongoDB.
+### 1. Database & Backend Models
+- **[NEW] [models/chat.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/models/chat.py)**: Define `ChatSession`, `ChatMessage`, and `Bookmark` models.
+- **[MODIFY] [models/user.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/models/user.py)**: Add relationships to chat history.
 
-### 2. Strict AI Logic (The "PDF Only" Fix)
-- **[MODIFY] [ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
-    - Update `rag_chat` system prompt: "Answer ONLY using the provided note excerpts."
-- **[MODIFY] [quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**:
-    - Update `generate_quiz` and `generate_flashcards` prompts: "Generate strictly from the provided NOTE text. No outside info."
+### 2. AI Service & Internet Intelligence
+- **[MODIFY] [services/ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
+    - Integrate hybrid search (Vector Store + Web Search).
+    - Update prompt engineering for "Step-by-step", "Interview Qs", and "Exam Tips".
+- **[NEW] [services/search_tool.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/search_tool.py)**: Handle web retrieval.
 
-### 3. File Limits & Config
-- **[MODIFY] [upload.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/upload.py)**:
-    - Change `MAX_SIZE_MB` to `1024`.
-- **[MODIFY] [render.yaml](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/render.yaml)**:
-    - Ensure `GROQ_API_KEY` is required.
+### 3. Voice AI System
+- **[MODIFY] [ai-chat/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/ai-chat/page.tsx)**:
+    - Implement `SpeechRecognition` for input.
+    - Implement `SpeechSynthesis` for output.
+    - Add voice control buttons (Start/Stop/Replay).
+    - Add waveform animation using CSS/Canvas.
+
+### 4. Big Question Bank & Flashcards
+- **[NEW] [flashcards/big-questions/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/flashcards/big-questions/page.tsx)**: Create the long-answer revision section.
+- **[MODIFY] [services/quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**: Add logic for generating 10-16 mark questions with structured outlines.
+
+### 5. Responsive UI & Theming
+- **[MODIFY] [Sidebar.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/components/Sidebar.tsx)**: Implement a mobile-first drawer using Headless UI or Radix.
+- **[MODIFY] [layout.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/layout.tsx)**: Add mobile navigation bar for small screens.
+- **[MODIFY] [globals.css](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/globals.css)**: Implement Dark/Light mode theme variables.
+
+---
 
 ## Verification Plan
-1.  User clicks "Clear Cache and Deploy" on Render.
-2.  Verify the Render logs show `DB_LOG: Database tables verified`.
-3.  Upload a 50MB+ PDF.
-4.  Ask AI Assistant: "What is mentioned on page 1?"
-5.  Generate a Quiz; ensure questions match the PDF exactly.
+
+### Automated Tests
+-   Verify backend endpoint for chat history: `GET /api/ai/history`.
+-   Verify web search fallback in `ai_service.py`.
+
+### Manual Verification
+-   **Mobile Test**: Use Chrome DevTools to verify all pages work on iPhone/Android sizes.
+-   **Voice Test**: Click the mic, speak a question, and verify the AI speaks back.
+-   **AI Accuracy**: Upload a note and verify the "Big Question Bank" uses note content.

@@ -1,15 +1,23 @@
 "use client";
 import { useTheme } from "next-themes";
-import { Sun, Moon, Bell } from "lucide-react";
+import { Sun, Moon, Bell, Menu } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 
-export default function TopBar() {
+export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const { theme, setTheme } = useTheme();
   const { user } = useAuthStore();
 
   return (
-    <header className="flex items-center justify-between px-6 py-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-      <div />
+    <header className="flex items-center justify-between px-4 md:px-6 py-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+      </div>
       <div className="flex items-center gap-3">
         <button
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}

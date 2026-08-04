@@ -15,6 +15,7 @@ const navItems = [
   { href: "/upload", label: "Upload Notes", icon: Upload },
   { href: "/notes", label: "My Notes", icon: FileText },
   { href: "/ai-chat", label: "AI Assistant", icon: Brain },
+  { href: "/flashcards/big-questions", label: "Big Questions", icon: MessageSquare },
   { href: "/quiz", label: "Quizzes", icon: BookOpen },
   { href: "/flashcards", label: "Flashcards", icon: Layers },
   { href: "/revision", label: "Revision Planner", icon: Calendar },
@@ -23,7 +24,7 @@ const navItems = [
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
   const router = useRouter();
@@ -33,12 +34,14 @@ export default function Sidebar() {
     router.push("/login");
   };
 
-  return (
-    <aside className="w-64 flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+  const NavContent = () => (
+    <>
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-gray-200 dark:border-gray-800">
-        <Sparkles className="text-brand-600" size={24} />
-        <span className="font-bold text-lg text-gray-900 dark:text-white">NoteMind AI</span>
+      <div className="flex items-center justify-between px-5 py-5 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex items-center gap-2.5">
+          <Sparkles className="text-brand-600" size={24} />
+          <span className="font-bold text-lg text-gray-900 dark:text-white">NoteMind AI</span>
+        </div>
       </div>
 
       {/* Nav */}
@@ -47,6 +50,7 @@ export default function Sidebar() {
           <Link
             key={href}
             href={href}
+            onClick={onClose}
             className={clsx(
               "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
               pathname === href || pathname.startsWith(href + "/")
@@ -62,6 +66,7 @@ export default function Sidebar() {
         {user?.role === "admin" && (
           <Link
             href="/admin"
+            onClick={onClose}
             className={clsx(
               "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
               pathname.startsWith("/admin")
@@ -79,6 +84,7 @@ export default function Sidebar() {
       <div className="p-3 border-t border-gray-200 dark:border-gray-800 space-y-1">
         <Link
           href="/settings"
+          onClick={onClose}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
         >
           <Settings size={18} />
@@ -96,6 +102,34 @@ export default function Sidebar() {
           <p className="text-xs text-gray-400 truncate">{user?.role}</p>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:flex w-64 flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+        <NavContent />
+      </aside>
+
+      {/* Mobile Drawer Overlay */}
+      <div
+        className={clsx(
+          "fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm lg:hidden transition-opacity",
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+
+      {/* Mobile Drawer */}
+      <aside
+        className={clsx(
+          "fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-900 shadow-xl lg:hidden transition-transform duration-300 ease-in-out flex flex-col",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <NavContent />
+      </aside>
+    </>
   );
 }
