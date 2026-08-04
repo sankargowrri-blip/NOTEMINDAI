@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
+from typing import List, Optional
 
 from app.db.postgres import get_db
 from app.models.user import User
@@ -16,6 +17,40 @@ from datetime import datetime
 
 router = APIRouter()
 
+# ── Models ────────────────────────────────────────────────────────────────────
+
+class ChatRequest(BaseModel):
+    question: str
+    note_id: Optional[int] = None
+    session_id: Optional[str] = None
+
+class SummaryRequest(BaseModel):
+    note_id: int
+    mode: str = "bullet"  # 50_word | 100_word | detailed | bullet | revision
+
+class SimplifyRequest(BaseModel):
+    note_id: int
+    level: str = "school"  # engineering | school | child
+
+class KeywordsRequest(BaseModel):
+    note_id: int
+
+class MindMapRequest(BaseModel):
+    note_id: int
+
+class FlowchartRequest(BaseModel):
+    note_id: int
+
+class ExamPredictRequest(BaseModel):
+    note_id: int
+    weak_topics: List[str] = []
+
+class BookmarkRequest(BaseModel):
+    session_id: str
+    message_content: str
+    note_id: Optional[int] = None
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 async def _get_note_text(note_id: int, user: User, db: AsyncSession) -> str:
     result = await db.execute(select(Note).where(Note.id == note_id, Note.owner_id == user.id))
@@ -27,12 +62,6 @@ async def _get_note_text(note_id: int, user: User, db: AsyncSession) -> str:
 
 # ── RAG Chat ──────────────────────────────────────────────────────────────────
 
-class ChatRequest(BaseModel):
-    question: str
-    note_id: int | None = None
-    session_id: str | None = None
-
-
 @router.post("/chat")
 async def chat(
     body: ChatRequest,
@@ -43,7 +72,6 @@ async def chat(
     if body.note_id:
         note_text = await _get_note_text(body.note_id, current_user, db)
     
-    # Load history from MongoDB if session_id provided
     session_id = body.session_id or str(uuid.uuid4())
     history = []
     
@@ -59,7 +87,6 @@ async def chat(
         history=history
     )
     
-    # Save to MongoDB
     new_messages = [
         {"role": "user", "content": body.question},
         {"role": "assistant", "content": result["answer"]}
@@ -86,17 +113,11 @@ async def get_history(
     col = chat_history_collection()
     cursor = col.find({"user_id": current_user.id}).sort("updated_at", -1)
     sessions = await cursor.to_list(length=20)
-    # Serialize for JSON
     for s in sessions:
         s["_id"] = str(s["_id"])
     return sessions
 
 # ── Bookmarks ─────────────────────────────────────────────────────────────────
-
-class BookmarkRequest(BaseModel):
-    session_id: str
-    message_content: str
-    note_id: int | None = None
 
 @router.post("/bookmarks")
 async def add_bookmark(
@@ -141,11 +162,6 @@ async def big_questions(
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
-class SummaryRequest(BaseModel):
-    note_id: int
-    mode: str = "bullet"  # 50_word | 100_word | detailed | bullet | revision
-
-
 @router.post("/summary")
 async def summarise(
     body: SummaryRequest,
@@ -160,11 +176,6 @@ async def summarise(
 
 
 # ── Simplify ──────────────────────────────────────────────────────────────────
-
-class SimplifyRequest(BaseModel):
-    note_id: int
-    level: str = "school"  # engineering | school | child
-
 
 @router.post("/simplify")
 async def simplify(
@@ -181,10 +192,6 @@ async def simplify(
 
 # ── Keywords ──────────────────────────────────────────────────────────────────
 
-class KeywordsRequest(BaseModel):
-    note_id: int
-
-
 @router.post("/keywords")
 async def extract_keywords(
     body: KeywordsRequest,
@@ -199,10 +206,6 @@ async def extract_keywords(
 
 # ── Mind Map ──────────────────────────────────────────────────────────────────
 
-class MindMapRequest(BaseModel):
-    note_id: int
-
-
 @router.post("/mind-map")
 async def mind_map(
     body: MindMapRequest,
@@ -216,10 +219,6 @@ async def mind_map(
 
 
 # ── Flowchart ─────────────────────────────────────────────────────────────────
-
-class FlowchartRequest(BaseModel):
-    note_id: int
-
 
 @router.post("/flowchart")
 async def flowchart(
@@ -237,11 +236,6 @@ async def flowchart(
 
 
 # ── Exam Predictor ────────────────────────────────────────────────────────────
-
-class ExamPredictRequest(BaseModel):
-    note_id: int
-    weak_topics: list[str] = []
-
 
 @router.post("/exam-predict")
 async def exam_predict(
