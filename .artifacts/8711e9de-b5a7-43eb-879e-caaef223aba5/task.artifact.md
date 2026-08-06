@@ -1,12 +1,12 @@
-# Task List - Final Model Connection Fix
+# Task List - AI Voice & Context Fix
 
-- `[/]` Synchronize Frontend Settings
-    - `[ ]` Set `NEXT_PUBLIC_API_URL` in Vercel Cloud
-    - `[ ]` Update `src/lib/api.ts` to use relative paths (Internal Bridge)
-- `[ ]` Simplify Backend Security
-    - `[ ]` Update `main.py` for cloud bridge compatibility
-- `[ ]` Trigger Production Builds
-    - `[ ]` Redeploy Frontend on Vercel
-    - `[ ]` Redeploy Backend on Render
-- `[ ]` Verify "One Domain" Connection
-    - `[ ]` Test Registration on live site
+- `[x]` Refine Voice AI Logic
+    - `[x]` Implement persistent speaker state (On/Off)
+    - `[x]` Add "Replay Voice" button to chat messages
+    - `[x]` Add "Speaking" animation to UI
+- `[x]` Improve Note Context
+    - `[x]` Add Note Selector dropdown to AI Chat page
+    - `[x]` Update backend prompts for missing context handling
+- `[/]` Final Synchronization
+    - `[ ]` Push code to GitHub
+    - `[ ]` Redeploy Frontend (Vercel) & Backend (Render)

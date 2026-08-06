@@ -34,49 +34,59 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
     return "AI_UNAVAILABLE"
 
 async def rag_chat(user_id: str, question: str, note_text: str = "", history: List[Dict] = None) -> dict:
-    system = (
-        "You are NoteMind AI. Answer primarily using the note text provided. "
-        "If you use information from the notes, prefix it with [Notes]. "
-        "If the information is not in the notes, you may use your knowledge or internet search results, but prefix it with [Web]."
-    )
+    """
+    RAG Chat. 
+    Strictly follows notes if available. 
+    Falls back to web search ONLY if notes are explicitly missing or the user asks for external info.
+    """
     
-    user_prompt = f"NOTE TEXT:\n{note_text}\n\nQUESTION: {question}"
-    
-    # Heuristic: If note text is too short, search the web
     is_web = False
-    if not note_text or len(note_text) < 100:
+    
+    if note_text and len(note_text.strip()) > 50:
+        # Note found - STRICT GROUNDING
+        system = (
+            "You are NoteMind AI. Answer strictly using the note text provided below. "
+            "Always prefix your answer with [Notes]. "
+            "If the question is not answerable from the notes, say: 'I'm sorry, I couldn't find that in your notes. Would you like me to search the web instead?'"
+        )
+        user_prompt = f"NOTE TEXT:\n{note_text}\n\nQUESTION: {question}"
+    else:
+        # No note selected or note is empty - WEB SEARCH FALLBACK
+        is_web = True
+        system = (
+            "You are NoteMind AI. I couldn't find any relevant notes selected. "
+            "I have searched the internet to help you. Prefix your answer with [Web]. "
+            "Remind the user to select a note from the dropdown if they want answers based on their study material."
+        )
         web_results = await search_tool.search(question)
-        if web_results:
-            user_prompt += f"\n\nWEB SEARCH RESULTS:\n{json.dumps(web_results)}"
-            is_web = True
+        user_prompt = f"WEB SEARCH RESULTS:\n{json.dumps(web_results)}\n\nQUESTION: {question}"
 
     answer = await _chat(system, user_prompt, messages=history)
     
     return {
         "answer": answer,
-        "sources": ["notes"] if "[Notes]" in answer else (["web"] if "[Web]" in answer or is_web else []),
-        "is_web": "[Web]" in answer or is_web
+        "sources": ["notes"] if not is_web else ["web"],
+        "is_web": is_web
     }
 
 async def generate_summary(text: str, mode: str = "bullet") -> str:
-    system = "You are a professional note summarizer. Use ONLY the text provided."
+    system = "You are a professional note summarizer. Use ONLY the text provided. No external info."
     prompt = f"Summarize this text as {mode}: \n\n{text}"
     return await _chat(system, prompt)
 
 async def simplify_note(text: str, level: str = "school") -> str:
-    system = f"Explain this text like I am a {level} student. Use simple language and analogies."
+    system = f"Explain this text like I am a {level} student. Use simple language and analogies. Use ONLY info from the text."
     prompt = f"Text to simplify:\n\n{text}"
     return await _chat(system, prompt)
 
 async def extract_keywords(text: str) -> dict:
-    system = "You are an extractor. Return JSON ONLY: {\"keywords\":[], \"definitions\":[]}"
+    system = "You are an extractor. Return JSON ONLY: {\"keywords\":[], \"definitions\":[]}. Use ONLY info from the text."
     prompt = f"Extract from this text:\n\n{text}"
     raw = await _chat(system, prompt)
     try:
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         return json.loads(match.group()) if match else {"keywords":[], "definitions":[]}
-    except Exception as e:
-        logger.error(f"JSON_PARSE_ERROR in extract_keywords: {e}")
+    except Exception:
         return {"keywords":[], "definitions":[]}
 
 async def translate_note(text: str, target_language: str) -> str:
@@ -85,7 +95,7 @@ async def translate_note(text: str, target_language: str) -> str:
 
 async def generate_big_questions(text: str) -> List[Dict]:
     system = (
-        "Generate 3 university-style long questions (10-16 marks) based on the notes. "
+        "Generate 3 university-style long questions (10-16 marks) based STRICTLY on the notes provided. "
         "For each question, provide a structured outline of how to answer it. "
         "Return as JSON list: [{\"question\": \"...\", \"marks\": 15, \"outline\": [\"...\", \"...\"]}]"
     )
@@ -96,8 +106,7 @@ async def generate_big_questions(text: str) -> List[Dict]:
         if match:
             return json.loads(match.group())
         return []
-    except Exception as e:
-        logger.error(f"JSON_PARSE_ERROR in big_questions: {e}")
+    except Exception:
         return []
 
 async def generate_mind_map(text: str) -> dict:
@@ -109,7 +118,7 @@ async def generate_flowchart(text: str) -> dict:
     return {"code": await _chat(system, text)}
 
 async def predict_exam_topics(text: str, weak_topics: List[str]) -> List[str]:
-    system = "Identify most likely exam topics based on the notes and weak areas."
+    system = "Identify most likely exam topics based STRICTLY on the notes and weak areas."
     prompt = f"Notes: {text}\nWeak Areas: {weak_topics}"
     raw = await _chat(system, prompt)
     return [t.strip() for t in raw.split("\n") if t.strip()]

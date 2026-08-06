@@ -1,50 +1,36 @@
-# Implementation Plan - NoteMind AI Mega Upgrade
+# Implementation Plan - AI Assistant Voice & Context Refinement
 
-This plan outlines the transformation of NoteMind AI into a full-scale AI Study Platform with Voice interaction, Internet-augmented intelligence, and a fully responsive professional UI.
+The goal is to strictly link the AI's voice response to the speaker button's state and improve the assistant's ability to use uploaded notes even when no specific note is selected via URL.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **External Search API**: To enable internet-enhanced search, we will need to integrate a search tool (e.g., **Tavily** or **DuckDuckGo API**). Tavily is recommended for educational accuracy.
-> **Voice Implementation**: I will use the **Web Speech API** for STT (Speech-to-Text) and TTS (Text-to-Speech) as it works natively in browsers without extra server costs.
+> **Voice Trigger**: I will ensure the AI assistant respects the speaker button for ALL responses. I will also add a **"Replay"** button to each AI message so you can hear the answer again if the speaker was off initially.
+> **Context Awareness**: I will add a **Note Selector** directly inside the Chat page. This way, you don't have to go back to "My Notes" to pick a file; you can select it while chatting.
 
 ## Proposed Changes
 
-### 1. Database & Backend Models
-- **[NEW] [models/chat.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/models/chat.py)**: Define `ChatSession`, `ChatMessage`, and `Bookmark` models.
-- **[MODIFY] [models/user.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/models/user.py)**: Add relationships to chat history.
-
-### 2. AI Service & Internet Intelligence
-- **[MODIFY] [services/ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
-    - Integrate hybrid search (Vector Store + Web Search).
-    - Update prompt engineering for "Step-by-step", "Interview Qs", and "Exam Tips".
-- **[NEW] [services/search_tool.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/search_tool.py)**: Handle web retrieval.
-
-### 3. Voice AI System
+### 1. AI Assistant UI Refinement
 - **[MODIFY] [ai-chat/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/ai-chat/page.tsx)**:
-    - Implement `SpeechRecognition` for input.
-    - Implement `SpeechSynthesis` for output.
-    - Add voice control buttons (Start/Stop/Replay).
-    - Add waveform animation using CSS/Canvas.
+    - **Persistence**: Save the speaker button state (On/Off) in the browser memory so it stays how you set it.
+    - **Visual Feedback**: Add a "Speaking" pulse animation to the speaker icon when the AI is talking.
+    - **Replay Button**: Add a small speaker icon next to each AI message to replay that specific answer.
+    - **Note Selector**: Add a dropdown at the top of the chat to select which note the AI should focus on.
 
-### 4. Big Question Bank & Flashcards
-- **[NEW] [flashcards/big-questions/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/flashcards/big-questions/page.tsx)**: Create the long-answer revision section.
-- **[MODIFY] [services/quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**: Add logic for generating 10-16 mark questions with structured outlines.
-
-### 5. Responsive UI & Theming
-- **[MODIFY] [Sidebar.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/components/Sidebar.tsx)**: Implement a mobile-first drawer using Headless UI or Radix.
-- **[MODIFY] [layout.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/layout.tsx)**: Add mobile navigation bar for small screens.
-- **[MODIFY] [globals.css](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/globals.css)**: Implement Dark/Light mode theme variables.
+### 2. Backend Prompt & Stability
+- **[MODIFY] [ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
+    - Refine the "Note context" check. If the note text is missing, the AI will now say: "I couldn't find a note selected. Please select a note from the dropdown above so I can help you with your points."
+- **[MODIFY] [ai_assistant.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/ai_assistant.py)**:
+    - Improve session handling to ensure the note context is preserved across follow-up questions.
 
 ---
 
 ## Verification Plan
 
-### Automated Tests
--   Verify backend endpoint for chat history: `GET /api/ai/history`.
--   Verify web search fallback in `ai_service.py`.
-
 ### Manual Verification
--   **Mobile Test**: Use Chrome DevTools to verify all pages work on iPhone/Android sizes.
--   **Voice Test**: Click the mic, speak a question, and verify the AI speaks back.
--   **AI Accuracy**: Upload a note and verify the "Big Question Bank" uses note content.
+- **Speaker Test**: Turn the speaker OFF and ask a question. Verify no audio plays. Turn it ON and ask. Verify audio plays.
+- **Replay Test**: Click the "Replay" icon on an old message and verify it speaks.
+- **Context Test**: Select a note from the new dropdown and ask "What is this about?". Verify it uses the note content.
+- **Mobile Test**: Ensure the new selector and replay buttons look good on a phone screen.
+
+**Shall I proceed with these voice and context improvements?**

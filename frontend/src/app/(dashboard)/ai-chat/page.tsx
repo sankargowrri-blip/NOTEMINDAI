@@ -1,8 +1,8 @@
 "use client";
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { aiApi } from "@/lib/api";
-import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark } from "lucide-react";
+import { aiApi, notesApi } from "@/lib/api";
+import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark, RefreshCw } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
 
@@ -25,7 +25,8 @@ const PROMPT_MODES = [
 
 function AIChatContent() {
   const searchParams = useSearchParams();
-  const noteId = searchParams.get("note");
+  const urlNoteId = searchParams.get("note");
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,10 +34,35 @@ function AIChatContent() {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Web Speech API
+  const [notes, setNotes] = useState<any[]>([]);
+  const [activeNoteId, setActiveNoteId] = useState<number | null>(urlNoteId ? Number(urlNoteId) : null);
+
+  const bottomRef = useRef<HTMLDivElement>(null);
   const recognition = useRef<any>(null);
+
+  // Persistence for Mute state
+  useEffect(() => {
+    const saved = localStorage.getItem("ai_chat_muted");
+    if (saved !== null) setIsMuted(saved === "true");
+
+    // Fetch notes for the selector
+    const fetchNotes = async () => {
+      try {
+        const res = await notesApi.list();
+        const list = res.data?.notes || [];
+        setNotes(list);
+        if (!activeNoteId && list.length > 0) setActiveNoteId(list[0].id);
+      } catch (e) {
+        console.error("Failed to fetch notes", e);
+      }
+    };
+    fetchNotes();
+  }, [activeNoteId]);
+
+  useEffect(() => {
+    localStorage.setItem("ai_chat_muted", String(isMuted));
+  }, [isMuted]);
 
   useEffect(() => {
     // Load history
@@ -50,15 +76,11 @@ function AIChatContent() {
         } else {
           setMessages([{
             role: "assistant",
-            content: "Hi! I'm your AI study assistant. Ask me anything about your uploaded notes, or use one of the quick prompts below.",
+            content: "Hi! I'm your AI study assistant. Pick a note below and ask me anything, or use your voice!",
           }]);
         }
       } catch (e) {
         console.error("Failed to load history", e);
-        setMessages([{
-          role: "assistant",
-          content: "Hi! I'm your AI study assistant. Ask me anything about your uploaded notes, or use one of the quick prompts below.",
-        }]);
       }
     };
     loadHistory();
@@ -100,6 +122,11 @@ function AIChatContent() {
     }
   };
 
+  const stopSpeaking = () => {
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+  };
+
   const toggleListening = () => {
     if (isListening) {
       recognition.current?.stop();
@@ -114,12 +141,9 @@ function AIChatContent() {
   };
 
   const handleBookmark = async (content: string) => {
-    if (!sessionId) {
-      toast.error("Please start a conversation first");
-      return;
-    }
+    if (!sessionId) return;
     try {
-      await aiApi.bookmark(sessionId, content, noteId ? Number(noteId) : undefined);
+      await aiApi.bookmark(sessionId, content, activeNoteId || undefined);
       toast.success("Saved to bookmarks!");
     } catch {
       toast.error("Failed to bookmark");
@@ -133,7 +157,7 @@ function AIChatContent() {
     setMessages((prev) => [...prev, { role: "user", content: q }]);
     setLoading(true);
     try {
-      const res = await aiApi.chat(q, noteId ? Number(noteId) : undefined, sessionId);
+      const res = await aiApi.chat(q, activeNoteId || undefined, sessionId);
       const answer = res.data?.answer || "I'm sorry, I couldn't process that.";
       setMessages((prev) => [
         ...prev,
@@ -155,22 +179,44 @@ function AIChatContent() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-130px)] max-w-5xl mx-auto w-full animate-fade-in px-2 md:px-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3">
         <div className="flex items-center gap-2">
           <Brain className="text-brand-600" size={24} />
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">AI Study Assistant</h1>
-          {noteId && (
-            <span className="badge bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 ml-2 text-[10px]">
-              Note #{noteId}
-            </span>
-          )}
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">AI Assistant</h1>
+
+          <select
+            value={activeNoteId || ""}
+            onChange={(e) => setActiveNoteId(Number(e.target.value))}
+            className="ml-2 text-xs py-1.5 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-brand-500"
+          >
+            <option value="">No note selected</option>
+            {notes.map(n => (
+              <option key={n.id} value={n.id}>{n.title}</option>
+            ))}
+          </select>
         </div>
-        <button
-          onClick={() => setIsMuted(!isMuted)}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
-        >
-          {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-        </button>
+
+        <div className="flex items-center gap-2 self-end">
+          {isSpeaking && (
+             <div className="flex gap-1 items-center mr-2">
+                <span className="w-1 h-3 bg-brand-500 animate-bounce"></span>
+                <span className="w-1 h-4 bg-brand-500 animate-bounce [animation-delay:-0.15s]"></span>
+                <span className="w-1 h-3 bg-brand-500 animate-bounce [animation-delay:-0.3s]"></span>
+             </div>
+          )}
+          <button
+            onClick={() => isSpeaking ? stopSpeaking() : setIsMuted(!isMuted)}
+            className={clsx(
+              "p-2 rounded-lg transition-all border",
+              isSpeaking
+                ? "bg-brand-50 border-brand-200 text-brand-600 animate-pulse"
+                : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 border-transparent"
+            )}
+            title={isSpeaking ? "Stop Voice" : (isMuted ? "Unmute Assistant" : "Mute Assistant")}
+          >
+            {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+          </button>
+        </div>
       </div>
 
       {/* Quick prompts */}
@@ -179,7 +225,7 @@ function AIChatContent() {
           <button
             key={p}
             onClick={() => send(p)}
-            className="whitespace-nowrap text-xs px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-brand-500 hover:text-brand-600 transition-all shadow-sm"
+            className="whitespace-nowrap text-[10px] md:text-xs px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-brand-500 hover:text-brand-600 transition-all shadow-sm"
           >
             {p}
           </button>
@@ -187,11 +233,11 @@ function AIChatContent() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-6 pb-4 scroll-smooth">
+      <div className="flex-1 overflow-y-auto space-y-6 pb-4 scroll-smooth pr-1">
         {messages.map((msg, i) => (
           <div key={i} className={clsx("flex gap-3", msg.role === "user" ? "flex-row-reverse" : "")}>
             <div className={clsx(
-              "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm transition-transform hover:scale-105",
+              "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm",
               msg.role === "assistant" ? "bg-brand-600 text-white" : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300"
             )}>
               {msg.role === "assistant" ? <Sparkles size={18} /> : <User size={18} />}
@@ -209,31 +255,42 @@ function AIChatContent() {
                 <div className="flex items-center gap-2">
                   {msg.is_web && (
                     <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
-                      Internet Augmented
+                      Internet
                     </span>
                   )}
                   {msg.sources && msg.sources.length > 0 && (
                     <p className="text-[10px] text-gray-400 font-medium">
-                      Verified from Notes
+                      Verified Notes
                     </p>
                   )}
                 </div>
-                {msg.role === "assistant" && (
-                  <button
-                    onClick={() => handleBookmark(msg.content)}
-                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-brand-600 transition-colors"
-                    title="Bookmark this answer"
-                  >
-                    <Bookmark size={14} />
-                  </button>
-                )}
+                <div className="flex items-center gap-1">
+                  {msg.role === "assistant" && (
+                    <>
+                      <button
+                        onClick={() => speak(msg.content)}
+                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-brand-600 transition-colors"
+                        title="Replay Audio"
+                      >
+                        <RefreshCw size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleBookmark(msg.content)}
+                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-brand-600 transition-colors"
+                        title="Bookmark"
+                      >
+                        <Bookmark size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         ))}
         {loading && (
           <div className="flex gap-3">
-            <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white">
               <Sparkles size={18} />
             </div>
             <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl px-5 py-3 shadow-sm">
@@ -253,9 +310,8 @@ function AIChatContent() {
         <div className="flex gap-2 items-center">
           <button
             onClick={toggleListening}
-            title={isListening ? "Stop listening" : "Ask with voice"}
             className={clsx(
-              "p-3 rounded-xl transition-all",
+              "p-3 rounded-xl transition-all shadow-sm",
               isListening
                 ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse"
                 : "bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-brand-600"
@@ -269,14 +325,14 @@ function AIChatContent() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
             placeholder={isListening ? "Listening..." : "Ask about your notes or the web..."}
-            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-gray-100 text-sm md:text-base py-2"
+            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-gray-100 text-sm md:text-base py-2 px-1"
             disabled={loading}
           />
 
           <button
             onClick={() => send()}
             disabled={loading || !input.trim()}
-            className="p-3 rounded-xl bg-brand-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-700 transition-colors shadow-md"
+            className="p-3 rounded-xl bg-brand-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-700 transition-all shadow-md active:scale-95"
           >
             {loading ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
           </button>
