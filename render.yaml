@@ -35,3 +35,13 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      - key: SMTP_SERVER
+        value: "smtp.gmail.com"
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: EMAILS_FROM
+        value: "NoteMind AI <noreply@notemind.ai>"

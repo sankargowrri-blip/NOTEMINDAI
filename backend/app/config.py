@@ -35,6 +35,16 @@ class Settings(BaseSettings):
     # Groq (free alternative — https://console.groq.com)
     groq_api_key: str = ""
 
+    # SMTP (for Password Reset)
+    smtp_server: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    emails_from: str = "NoteMind AI <noreply@notemind.ai>"
+
+    # Frontend URL (for Reset Links)
+    frontend_url: str = "https://frontend-iota-sepia-w5lxtih60r.vercel.app"
+
     # Storage
     storage_backend: str = "local"
     local_upload_dir: str = "uploads"

@@ -4,12 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
+import logging
 
 from app.db.postgres import get_db
 from app.models.user import User, UserRole
 from app.services.auth_service import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
+from app.services.email_service import send_reset_password_email
 
 router = APIRouter()
+logger = logging.getLogger("notemind")
 
 
 class RegisterRequest(BaseModel):
@@ -36,9 +39,6 @@ class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
 
-
-import logging
-logger = logging.getLogger("notemind")
 
 @router.post("/register", status_code=201)
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
@@ -91,7 +91,7 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
         if payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         user_id = int(payload.get("sub"))
-    except (JWTError, TypeError):
+    except (JWTError, TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -102,15 +102,15 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
 
 
 @router.post("/forgot-password")
-async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
-    # In production: generate reset token, store with 60-min expiry, email the user
+async def forgot_password(body: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
+    """Generate reset token and send via email."""
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
     if user:
         reset_token = create_access_token({"sub": str(user.id), "purpose": "reset"})
-        # TODO: send email with reset_token
-        _ = reset_token  # would be emailed in production
-    # Always return 200 to avoid email enumeration
+        background_tasks.add_task(send_reset_password_email, user.email, reset_token)
+    
+    # Always return 200 for security
     return {"message": "If that email is registered, a reset link has been sent."}
 
 
@@ -122,7 +122,7 @@ async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(
         if payload.get("purpose") != "reset":
             raise HTTPException(status_code=400, detail="Invalid reset token")
         user_id = int(payload.get("sub"))
-    except (JWTError, TypeError):
+    except (JWTError, TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()

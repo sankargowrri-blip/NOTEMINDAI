@@ -1,37 +1,41 @@
-# Implementation Plan - Total Quiz Evaluation Alignment
+# Implementation Plan - Password Reset & Email Integration
 
-The goal is to fix the mismatch between the visual "Green" marks and the final score (0/5) by aligning the backend evaluation logic perfectly with the frontend.
+The goal is to implement a fully functional "Forgot Password" system by integrating an email sending service into the backend.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Unified Evaluation**: I am moving the "Smart Evaluation" logic to the backend. Instead of having the frontend and backend calculate scores differently, the backend will now handle the heavy lifting using a robust normalization algorithm that handles letters (A, B, C, D) and full text seamlessly.
-> **Score Synchronization**: This will ensure that if a question is marked Green on your screen, it is **guaranteed** to be counted in your final score.
+> **Email Provider Credentials**: To send real emails, you will need an SMTP server (like Gmail, Outlook, or Brevo). You will need to add your `SMTP_USER` and `SMTP_PASSWORD` to your **Render Dashboard** environment variables.
+> **Note for Gmail users**: You must use an **"App Password"** instead of your regular login password for security.
 
 ## Proposed Changes
 
-### 1. AI Service: Evaluation Guardrails
-- **[MODIFY] [quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**:
-    - Update the prompt to ensure the `answer` field is consistently just the **Letter** (A, B, C, or D) for MCQs.
+### 1. Configuration & Security
+- **[MODIFY] [config.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/config.py)**:
+    - Add `smtp_server`, `smtp_port`, `smtp_user`, `smtp_password`, and `emails_from` fields to the `Settings` class.
 
-### 2. Backend: Smart Scorer
-- **[MODIFY] [routers/quiz.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/quiz.py)**:
-    - Implement a `normalize_answer` helper in Python.
-    - Update the `submit_quiz` endpoint to use this helper.
-    - Ensure it matches the user's choice against the correct letter, the correct full text, or the option's index.
+### 2. Email Service
+- **[NEW] [services/email_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/email_service.py)**:
+    - Implement a thread-safe email dispatcher using Python's `smtplib`.
+    - Create a function `send_reset_password_email(email, token)` that formats a professional reset link.
 
-### 3. Frontend: Result Presentation
-- **[MODIFY] [quiz/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/quiz/page.tsx)**:
-    - Simplify the frontend logic to rely on the backend's score for the summary banner.
-    - Ensure the visual review colors (Green/Red) use the exact same normalization as the backend.
+### 3. Authentication Router
+- **[MODIFY] [routers/auth.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/auth.py)**:
+    - Update the `forgot-password` endpoint to call the new email service using `BackgroundTasks` (to ensure the user doesn't have to wait for the email to send before seeing the success message).
+    - Fix minor linter errors (missing `re`, `time`, etc. identified in earlier logs).
+
+### 4. Infrastructure (Render)
+- **[MODIFY] [render.yaml](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/render.yaml)**:
+    - Declare the new SMTP environment variables so you can easily edit them in the dashboard.
 
 ---
 
 ## Verification Plan
 
 ### Manual Verification
-- **Perfect Score Test**: Take a 5-question quiz, answer all correctly. Verify the top banner says **100%** and **5 out of 5**.
-- **Visual Sync Test**: Intentionally miss one question. Verify that the top score is **4 out of 5** and exactly one question is marked Red.
-- **Report Test**: Export to Excel/PDF and verify the score in the files matches the screen.
+1.  **Dashboard Check**: Add SMTP credentials to Render.
+2.  **Trigger**: Click "Forgot Password" on the website and enter your email.
+3.  **Inbox**: Verify a professional email arrives with a link.
+4.  **Reset**: Click the link and set a new password. Verify you can now log in with the new password.
 
-**I am applying these fixes now to ensure your score is always 100% accurate.**
+**Shall I proceed with implementing real email support?**
