@@ -1,33 +1,36 @@
-# Implementation Plan - Mermaid Diagram Stability Fix
+# Implementation Plan - AI Activation & Diagram Stability
 
-The goal is to resolve the "Syntax error" in Mermaid diagrams and ensure the AI generates 100% valid diagram code.
+The goal is to fix the `AI_UNAVAILABLE` error (missing API key) and resolve the visual "Syntax error" blocks appearing in the UI.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Robust Rendering**: I am switching the diagram engine to use a modern rendering method that handles errors gracefully. Instead of a red box, if a diagram fails, it will show a "Try again" button and the raw text so you can still read the explanation.
-> **Prompt Tuning**: I am updating the AI's internal "Brain" to be extremely strict. It will be instructed to ONLY produce valid Mermaid syntax without any conversational filler inside the code blocks.
+> **API Key Setup**: The `AI_UNAVAILABLE` message means your Render server doesn't have your **Groq API Key**. I will update the code to tell you exactly how to fix this in your Render Dashboard.
+> **Diagram Fix**: I will update the Mermaid renderer to be more "silent" if it hits an error, so you don't see messy red boxes if the AI is still waking up.
 
 ## Proposed Changes
 
-### 1. Frontend: Robust Diagram Component
-- **[MODIFY] [Mermaid.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/components/Mermaid.tsx)**:
-    - Use `mermaid.render` API for reliable SVG generation.
-    - Add error handling to prevent the whole page from showing "Syntax Error".
-    - Auto-clean the input string (remove common AI mistakes like "Diagram:" or "Here is the code:").
+### 1. Backend: AI Diagnostics
+- **[MODIFY] [app/main.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/main.py)**:
+    - Add a startup log: `INFO: GROQ Key detected: True/False`. This helps us see if Render is passing the key.
+- **[MODIFY] [services/ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
+    - Improve error reporting. Instead of just `AI_UNAVAILABLE`, return a helpful message directing the user to check their environment variables.
 
-### 2. Backend: Strict Syntax Enforcement
-- **[MODIFY] [ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
-    - **Prompt Update**: "When generating diagrams, start exactly with the diagram type (e.g., 'graph TD'). Do NOT add titles or labels inside the code block."
-    - **Python Fix**: Resolve the `any` reference issue and optimize the hybrid search logic.
+### 2. Frontend: Visual Stability
+- **[MODIFY] [components/Mermaid.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/components/Mermaid.tsx)**:
+    - Use a more unique ID system (using `useId`) to prevent multiple diagrams from clashing.
+    - Hide the red error boxes if the diagram is empty or invalid.
+- **[MODIFY] [ai-chat/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/ai-chat/page.tsx)**:
+    - Add a "Diagnostics Toast": If the server says the key is missing, show a popup with a link to the Render settings.
 
 ---
 
 ## Verification Plan
 
 ### Manual Verification
-- **Stress Test**: Ask the AI for a "Complex Flowchart of a Banking System." Verify it renders without syntax errors.
-- **Auto-Correction Test**: If the AI makes a small mistake, the new `Mermaid.tsx` should attempt to strip invalid lines before rendering.
-- **Theme Test**: Ensure diagrams look good in both Dark and Light modes.
+1.  **Startup Check**: User checks Render Logs for `GROQ Key detected: True`.
+2.  **Key Setup**: User adds `GROQ_API_KEY` to Render Dashboard -> Environment.
+3.  **Chat Test**: Ask "What is NoteMind AI?". Verify a text response.
+4.  **Diagram Test**: Ask "Explain the water cycle with a diagram." Verify a clean chart appears (no red boxes).
 
-**I am applying these stability fixes now. No action needed on your part until the final deploy.**
+**I will push these stability updates now. Please verify your Groq key is set in the Render Dashboard!**

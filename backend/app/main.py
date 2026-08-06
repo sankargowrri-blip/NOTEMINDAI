@@ -32,6 +32,14 @@ from app.routers import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.info("Starting up NoteMind AI...")
+    
+    # Diagnostics: Check AI Keys
+    groq_key = getattr(settings, "groq_api_key", "")
+    if groq_key and groq_key.startswith("gsk_"):
+        logging.info("DIAGNOSTIC: Groq API Key found and valid format.")
+    else:
+        logging.warning("DIAGNOSTIC: Groq API Key is MISSING or invalid. AI features will fail.")
+
     await init_db()
     yield
     logging.info("Shutting down NoteMind AI...")

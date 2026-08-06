@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 async def _chat(system: str, user: str, max_tokens: int = 4096, messages: Optional[List[Dict]] = None) -> str:
     """Call Groq using Async client for better performance."""
-    groq_key = getattr(settings, "groq_api_key", "")
+    groq_key = settings.groq_api_key
     if groq_key and groq_key.startswith("gsk_"):
         try:
             from groq import AsyncGroq
@@ -18,7 +18,7 @@ async def _chat(system: str, user: str, max_tokens: int = 4096, messages: Option
             chat_messages = [{"role": "system", "content": system}]
             if messages:
                 history = [m for m in messages if m.get("role") != "system"]
-                chat_messages.extend(history[-8:]) # Increased history context
+                chat_messages.extend(history[-8:]) 
             chat_messages.append({"role": "user", "content": user})
             
             resp = await client.chat.completions.create(
@@ -30,7 +30,8 @@ async def _chat(system: str, user: str, max_tokens: int = 4096, messages: Option
             return resp.choices[0].message.content.strip()
         except Exception as e:
             logger.error(f"GROQ_ERROR: {str(e)}")
-    return "AI_UNAVAILABLE"
+            return f"ERROR: The AI server encountered an issue ({str(e)}). Please check your API usage."
+    return "AI_UNAVAILABLE: Your Groq API key is missing. Please add GROQ_API_KEY to your Render Dashboard Environment Variables."
 
 async def rag_chat(user_id: str, question: str, note_text: str = "", history: List[Dict] = None) -> dict:
     """
@@ -116,8 +117,11 @@ async def generate_big_questions(text: str) -> List[Dict]:
     raw = await _chat(system, prompt)
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
-        return json.loads(match.group()) if match else []
-    except Exception: return []
+        if match:
+            return json.loads(match.group())
+        return []
+    except Exception:
+        return []
 
 async def generate_mind_map(text: str) -> dict:
     system = "Generate a Mermaid mindmap for the following text. Return ONLY the mermaid code block."

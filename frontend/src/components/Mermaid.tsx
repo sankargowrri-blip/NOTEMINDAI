@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useId } from "react";
 import mermaid from "mermaid";
 
 mermaid.initialize({
@@ -9,22 +9,21 @@ mermaid.initialize({
   fontFamily: "Inter",
 });
 
-let idCount = 0;
-
 export default function Mermaid({ chart }: { chart: string }) {
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<boolean>(false);
-  const chartId = useRef(`mermaid-svg-${++idCount}`);
+  const id = useId();
+  // Safe ID for SVG (no special characters)
+  const safeId = `mermaid-${id.replace(/:/g, "")}`;
 
   useEffect(() => {
     const renderChart = async () => {
-      if (!chart) return;
+      if (!chart || chart.trim().length < 5) return;
 
       try {
         setError(false);
         // Clean common AI mistakes
         let cleanChart = chart.trim();
-        // Remove lines that don't look like mermaid (e.g. "Diagram:", "Here is the code:")
         const lines = cleanChart.split('\n');
         const validStartKeywords = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'journey', 'gantt', 'pie', 'quadrantChart', 'mindmap', 'timeline', 'gitGraph'];
 
@@ -34,9 +33,12 @@ export default function Mermaid({ chart }: { chart: string }) {
 
         if (firstValidLineIndex !== -1) {
           cleanChart = lines.slice(firstValidLineIndex).join('\n');
+        } else {
+          // If no valid keyword found, it's probably not a diagram
+          return;
         }
 
-        const { svg } = await mermaid.render(chartId.current, cleanChart);
+        const { svg } = await mermaid.render(safeId, cleanChart);
         setSvg(svg);
       } catch (err) {
         console.error("Mermaid render error:", err);
@@ -45,26 +47,17 @@ export default function Mermaid({ chart }: { chart: string }) {
     };
 
     renderChart();
-  }, [chart]);
+  }, [chart, safeId]);
 
   if (error) {
     return (
-      <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-xl my-2 text-center">
-        <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-2">Diagram rendering failed</p>
-        <pre className="text-[10px] text-gray-500 overflow-x-auto p-2 bg-white dark:bg-black/20 rounded text-left">
-          {chart}
-        </pre>
+      <div className="p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl my-2 italic text-xs text-gray-500 text-center">
+        (Could not render diagram)
       </div>
     );
   }
 
-  if (!svg) {
-    return (
-      <div className="h-32 flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-xl my-2 animate-pulse">
-        <span className="text-xs text-gray-400">Generating diagram...</span>
-      </div>
-    );
-  }
+  if (!svg) return null;
 
   return (
     <div
