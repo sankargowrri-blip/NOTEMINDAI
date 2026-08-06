@@ -33,6 +33,30 @@ export default function QuizPage() {
     queryFn: () => notesApi.list({ limit: 100 }).then((r) => r.data),
   });
 
+  // Smart check to handle MCQ letter vs text matching
+  const checkIsCorrect = (q: Question, userAnswer: string) => {
+    if (!userAnswer) return false;
+    const submitted = userAnswer.trim().toUpperCase();
+    const correct = q.answer.trim().toUpperCase();
+
+    // Case 1: Exact match (A == A or Text == Text)
+    if (submitted === correct) return true;
+
+    // Case 2: MCQ fallback
+    if (q.options) {
+      // If user sent 'A' and correct was full text
+      const optText = q.options[submitted]?.trim().toUpperCase();
+      if (optText && optText === correct) return true;
+
+      // If correct is 'A' and user sent full text
+      if (correct.length === 1 && "ABCD".includes(correct)) {
+        const correctText = q.options[correct]?.trim().toUpperCase();
+        if (submitted === correctText) return true;
+      }
+    }
+    return false;
+  };
+
   const generateQuiz = async () => {
     if (!noteId) return toast.error("Please select a note");
     setLoading(true);
@@ -51,16 +75,20 @@ export default function QuizPage() {
   const submitQuiz = async () => {
     if (!quiz) return;
     const answersArr = quiz.questions.map((_, i) => ({ answer: answers[i] || "" }));
-    const res = await quizApi.submit(quiz.quiz_id, answersArr);
-    setResult(res.data);
-    setStep("result");
+    try {
+        const res = await quizApi.submit(quiz.quiz_id, answersArr);
+        setResult(res.data);
+        setStep("result");
+    } catch (e) {
+        toast.error("Failed to submit quiz. Please try again.");
+    }
   };
 
   const exportToExcel = () => {
     if (!quiz || !result) return;
 
     const data = quiz.questions.map((q, i) => {
-      const isCorrect = String(answers[i]).trim().toUpperCase() === String(q.answer).trim().toUpperCase();
+      const isCorrect = checkIsCorrect(q, answers[i]);
       return {
         "Question No": i + 1,
         "Question": q.question,
@@ -75,12 +103,6 @@ export default function QuizPage() {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Quiz Results");
-
-    // Summary row
-    XLSX.utils.sheet_add_aoa(worksheet, [
-      [],
-      ["Final Score", `${result.score} out of ${result.total}`, `${result.percentage}%`]
-    ], { origin: -1 });
 
     XLSX.writeFile(workbook, `${quiz.title}_Report.xlsx`);
     toast.success("Excel report downloaded!");
@@ -161,7 +183,7 @@ export default function QuizPage() {
 
   if (step === "result" && result && quiz) return (
     <div className="max-w-3xl mx-auto space-y-8 animate-fade-in py-6">
-      <div className="card p-8 text-center space-y-4">
+      <div className="card p-8 text-center space-y-4 shadow-xl">
         <div className={`w-24 h-24 rounded-full mx-auto flex items-center justify-center text-white text-3xl font-bold ${result.percentage >= 60 ? "bg-green-500 shadow-lg shadow-green-500/30" : "bg-red-500 shadow-lg shadow-red-500/30"}`}>
           {result.percentage}%
         </div>
@@ -179,10 +201,10 @@ export default function QuizPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between px-1">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white">Review Answers</h3>
-            <p className="text-sm font-medium text-brand-600 dark:text-brand-400">Score: {result.score}/{result.total}</p>
+            <p className="text-sm font-medium text-brand-600 dark:text-brand-400">Final Score: {result.score}/{result.total}</p>
         </div>
         {quiz.questions.map((q, i) => {
-          const isCorrect = String(answers[i]).trim().toUpperCase() === String(q.answer).trim().toUpperCase();
+          const isCorrect = checkIsCorrect(q, answers[i]);
           return (
             <div key={i} className={clsx(
               "card p-6 border-l-4 transition-all duration-300",
@@ -197,17 +219,22 @@ export default function QuizPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                   {Object.entries(q.options).map(([k, v]) => {
                     const isSelected = answers[i] === k;
-                    const isTheRightAnswer = q.answer === k;
+                    const isTheRightAnswer = q.answer === k || (q.answer.length > 1 && q.answer.trim().toUpperCase() === v.trim().toUpperCase());
+
                     return (
                       <div key={k} className={clsx(
-                        "p-3 rounded-lg border text-sm font-medium",
-                        isTheRightAnswer ? "bg-green-100 dark:bg-green-900/30 border-green-500 text-green-700 dark:text-green-400" :
+                        "p-3 rounded-lg border text-sm font-medium transition-all",
+                        isTheRightAnswer ? "bg-green-100 dark:bg-green-900/30 border-green-500 text-green-700 dark:text-green-400 ring-2 ring-green-500/20" :
                         isSelected ? "bg-red-100 dark:bg-red-900/30 border-red-500 text-red-700 dark:text-red-400" :
                         "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"
                       )}>
-                        <strong>{k}.</strong> {v}
-                        {isTheRightAnswer && <span className="ml-2 text-[10px] uppercase font-bold text-green-600 dark:text-green-500">(Correct)</span>}
-                        {isSelected && !isCorrect && <span className="ml-2 text-[10px] uppercase font-bold text-red-600 dark:text-red-500">(Your Choice)</span>}
+                        <div className="flex items-center justify-between">
+                            <span><strong>{k}.</strong> {v}</span>
+                            {isTheRightAnswer && <CheckCircle className="text-green-600" size={14} />}
+                            {isSelected && !isCorrect && <XCircle className="text-red-600" size={14} />}
+                        </div>
+                        {isTheRightAnswer && <span className="text-[10px] uppercase font-bold text-green-600 dark:text-green-500 block mt-1">(Correct Answer)</span>}
+                        {isSelected && !isCorrect && <span className="text-[10px] uppercase font-bold text-red-600 dark:text-red-500 block mt-1">(Your Choice)</span>}
                       </div>
                     );
                   })}
@@ -233,13 +260,13 @@ export default function QuizPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 pb-10">
-        <button onClick={() => setStep("config")} className="btn-primary justify-center py-3">
+        <button onClick={() => setStep("config")} className="btn-primary justify-center py-3 shadow-lg">
           <RotateCcw size={18} /> New Quiz
         </button>
-        <button onClick={exportToExcel} className="btn-secondary justify-center py-3 bg-emerald-600 hover:bg-emerald-700 text-white border-none">
+        <button onClick={exportToExcel} className="btn-secondary justify-center py-3 bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-lg">
           <FileSpreadsheet size={18} /> Export as Excel
         </button>
-        <button onClick={() => window.print()} className="btn-secondary justify-center py-3">
+        <button onClick={() => window.print()} className="btn-secondary justify-center py-3 shadow-lg">
           Download PDF Report
         </button>
       </div>
