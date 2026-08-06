@@ -35,17 +35,38 @@ export default function QuizPage() {
     queryFn: () => notesApi.list({ limit: 100 }).then((r) => r.data),
   });
 
-  const checkIsCorrect = (q: Question, key: string) => {
-    if (!key) return false;
-    const submitted = String(key).trim().toUpperCase();
-    const correct = String(q.answer).trim().toUpperCase();
+  const normalize = (text: string) => {
+    return String(text)
+      .toLowerCase()
+      .replace(/^[a-d][.)\s-]+/, "") // Remove "A. ", "B-", "C) " etc.
+      .replace(/\s+/g, " ")
+      .trim();
+  };
 
-    // MCQ Letter Check (Strict)
-    const correctLetter = correct.replace(/[.)\s]/g, "").slice(0, 1);
-    if ("ABCD".includes(submitted) && submitted === correctLetter) return true;
+  const checkIsCorrect = (q: Question, userAnswer: string) => {
+    if (!userAnswer) return false;
 
-    // Full text match if not a single letter
-    if (submitted === correct) return true;
+    const submitted = String(userAnswer).trim().toUpperCase(); // e.g., "A"
+    const correct = String(q.answer).trim().toUpperCase(); // e.g., "A" or the full text
+
+    // 1. Direct letter match (e.g. user selected 'A' and AI said 'A')
+    if (submitted.length === 1 && "ABCD".includes(submitted)) {
+      const correctLetter = correct.replace(/[.)\s]/g, "").slice(0, 1);
+      if (submitted === correctLetter) return true;
+    }
+
+    // 2. Full text normalization match
+    const normSubmitted = normalize(userAnswer);
+    const normCorrect = normalize(q.answer);
+    if (normSubmitted === normCorrect && normSubmitted !== "") return true;
+
+    // 3. Match user's letter choice against option text
+    if (q.options && q.options[submitted]) {
+      const normOption = normalize(q.options[submitted]);
+      if (normOption === normCorrect || normCorrect.includes(normOption) || normOption.includes(normCorrect)) {
+        return true;
+      }
+    }
 
     return false;
   };
@@ -87,7 +108,8 @@ export default function QuizPage() {
         "Options": q.options ? Object.entries(q.options).map(([k, v]) => `${k}: ${v}`).join(" | ") : "N/A",
         "Your Answer": answers[i] || "Skipped",
         "Correct Answer": q.answer,
-        "Result": isCorrect ? "CORRECT" : "WRONG"
+        "Result": isCorrect ? "CORRECT" : "WRONG",
+        "Explanation": q.explanation || ""
       };
     });
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -101,9 +123,8 @@ export default function QuizPage() {
     if (!quiz || !result) return;
     const doc = new jsPDF();
 
-    // Header
     doc.setFontSize(22);
-    doc.setTextColor(79, 88, 255); // Brand color
+    doc.setTextColor(79, 88, 255);
     doc.text("NoteMind AI — Quiz Report", 14, 20);
 
     doc.setFontSize(12);
@@ -117,7 +138,7 @@ export default function QuizPage() {
       q.question,
       answers[i] || "-",
       q.answer,
-      checkIsCorrect(q, answers[i]) ? "✓" : "✗"
+      checkIsCorrect(q, answers[i]) ? "CORRECT" : "WRONG"
     ]);
 
     autoTable(doc, {
@@ -177,7 +198,7 @@ export default function QuizPage() {
   if (step === "quiz" && quiz) return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-20 px-2">
       <div className="flex items-center justify-between sticky top-0 bg-gray-50/80 dark:bg-gray-950/80 backdrop-blur-md py-4 z-10">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">{quiz.title}</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate pr-4">{quiz.title}</h1>
         <span className="badge bg-brand-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase">{difficulty}</span>
       </div>
       {quiz.questions.map((q, i) => (
