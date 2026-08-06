@@ -18,7 +18,7 @@ def _chat(prompt: str, max_tokens: int = 3000) -> str:
                     {
                         "role": "system", 
                         "content": (
-                            "You are a professional educational examiner. "
+                            "You are a professional academic examiner. "
                             "You generate challenging and accurate academic questions. "
                             "Follow JSON instructions perfectly."
                         )
@@ -53,11 +53,12 @@ def generate_quiz(note_text: str, web_context: str = "", question_type: str = "m
         f"Generate exactly {count} {difficulty}-difficulty {q_desc} based on the context provided.\n\n"
         "Instructions:\n"
         "1. Create a mix of questions from the 'NOTE CONTENT' and 'INTERNET CONTEXT'.\n"
-        "2. For MCQ: The 'answer' field MUST be exactly one letter: 'A', 'B', 'C', or 'D'.\n"
-        "3. Provide a clear 'explanation' for each answer.\n"
-        "4. Return a JSON array of objects. Each object must have:\n"
+        "2. CRITICAL: For MCQ, the 'answer' field MUST be exactly one uppercase letter: 'A', 'B', 'C', or 'D'.\n"
+        "3. For MCQ, the correct answer must be one of the four options provided.\n"
+        "4. Provide a clear 'explanation' for each answer.\n"
+        "5. Return a JSON array of objects. Each object must have:\n"
         "   - \"question\": the question text\n"
-        "   - \"answer\": the correct answer (LETTER for MCQ, text for others)\n"
+        "   - \"answer\": the correct answer (SINGLE LETTER for MCQ, text for others)\n"
         "   - \"explanation\": brief educational explanation\n"
         "   - \"options\": (FOR MCQ ONLY) {\"A\":...,\"B\":...,\"C\":...,\"D\":...}\n\n"
         f"{context_block}"

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, Field
 import json
+import re
 
 from app.db.postgres import get_db
 from app.models.user import User
@@ -44,7 +45,7 @@ async def create_quiz(
 
     text = note.refined_text or note.raw_ocr_text or ""
     
-    # Hybrid Context: Get web results based on note subject/title
+    # Hybrid Context
     web_context = ""
     try:
         search_query = f"{note.subject} {note.title}" if note.subject else note.title
@@ -52,7 +53,7 @@ async def create_quiz(
         if web_results:
             web_context = json.dumps(web_results)
     except Exception:
-        pass # Fallback to note-only if search fails
+        pass
 
     questions = generate_quiz(
         note_text=text, 
@@ -63,10 +64,7 @@ async def create_quiz(
     )
     
     if not questions:
-        raise HTTPException(
-            422,
-            detail="Could not generate questions. Ensure your Groq API key is set in backend settings."
-        )
+        raise HTTPException(422, detail="Could not generate questions.")
 
     quiz = Quiz(
         note_id=body.note_id,
@@ -101,6 +99,12 @@ async def get_quiz(
     }
 
 
+def _normalize(text: str) -> str:
+    """Helper to strip punctuation and case for robust matching."""
+    if not text: return ""
+    return re.sub(r'^[A-D][.)\s-]+', '', str(text)).strip().upper()
+
+
 @router.post("/submit")
 async def submit_quiz(
     body: QuizSubmitRequest,
@@ -113,20 +117,26 @@ async def submit_quiz(
         raise HTTPException(404, detail="Quiz not found")
 
     score = 0
-    # The frontend now identifies the 'CorrectKey' based on strict 1-to-1 matching.
-    # We maintain this logic here for the DB record.
     for i, q in enumerate(quiz.questions):
         if i < len(body.answers):
             user_ans = str(body.answers[i].get("answer", "")).strip().upper()
             correct_ans = str(q.get("answer", "")).strip().upper()
             
-            # Use the same strict logic as frontend to count score
+            # 1. Direct match (A == A)
             if user_ans == correct_ans:
                 score += 1
-            elif q.get("options"):
-                # Check if the user sent full text instead of letter
-                correct_text = q.get("options", {}).get(correct_ans, "").strip().upper()
-                if user_ans == correct_text:
+                continue
+            
+            # 2. Normalize and check letter (e.g. AI said "A." but user sent "A")
+            clean_correct = re.sub(r'[^A-D]', '', correct_ans)[:1]
+            if user_ans == clean_correct and user_ans in "ABCD":
+                score += 1
+                continue
+
+            # 3. Text match fallback (If correct answer was the full string)
+            if q.get("options"):
+                opt_text = str(q.get("options", {}).get(user_ans, "")).strip().upper()
+                if opt_text and (opt_text == correct_ans or _normalize(opt_text) == _normalize(correct_ans)):
                     score += 1
 
     attempt = QuizAttempt(
