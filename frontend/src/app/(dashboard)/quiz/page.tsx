@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { notesApi, quizApi } from "@/lib/api";
 import toast from "react-hot-toast";
-import { BookOpen, Loader2, ChevronRight, CheckCircle, XCircle } from "lucide-react";
+import { BookOpen, Loader2, ChevronRight, CheckCircle, XCircle, RotateCcw, AlertCircle } from "lucide-react";
+import clsx from "clsx";
 
 const QUESTION_TYPES = ["mcq", "fill_blank", "true_false", "one_word", "descriptive", "viva", "placement"];
 const DIFFICULTIES = ["easy", "medium", "hard"];
@@ -127,21 +128,84 @@ export default function QuizPage() {
     </div>
   );
 
-  if (step === "result" && result) return (
-    <div className="max-w-lg mx-auto text-center space-y-6 animate-fade-in py-10">
-      <div className={`w-24 h-24 rounded-full mx-auto flex items-center justify-center text-white text-3xl font-bold ${result.percentage >= 60 ? "bg-green-500" : "bg-red-500"}`}>
-        {result.percentage}%
+  if (step === "result" && result && quiz) return (
+    <div className="max-w-3xl mx-auto space-y-8 animate-fade-in py-6">
+      <div className="card p-8 text-center space-y-4">
+        <div className={`w-24 h-24 rounded-full mx-auto flex items-center justify-center text-white text-3xl font-bold ${result.percentage >= 60 ? "bg-green-500 shadow-lg shadow-green-500/30" : "bg-red-500 shadow-lg shadow-red-500/30"}`}>
+          {result.percentage}%
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Quiz Complete!</h2>
+          <p className="text-gray-500 mt-1">You scored <span className="font-bold text-gray-900 dark:text-white">{result.score}</span> out of {result.total}</p>
+        </div>
+        {result.percentage >= 60 ? (
+          <div className="flex items-center justify-center gap-2 text-green-600 font-medium bg-green-50 dark:bg-green-900/20 py-2 px-4 rounded-full w-max mx-auto border border-green-100 dark:border-green-800"><CheckCircle size={20} /> Great job!</div>
+        ) : (
+          <div className="flex items-center justify-center gap-2 text-red-500 font-medium bg-red-50 dark:bg-red-900/20 py-2 px-4 rounded-full w-max mx-auto border border-red-100 dark:border-red-800"><XCircle size={20} /> Keep practising!</div>
+        )}
       </div>
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Quiz Complete!</h2>
-        <p className="text-gray-500 mt-1">You scored {result.score} out of {result.total}</p>
+
+      <div className="space-y-6">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white px-1">Review Answers</h3>
+        {quiz.questions.map((q, i) => {
+          const isCorrect = String(answers[i]).trim().toLowerCase() === String(q.answer).trim().toLowerCase();
+          return (
+            <div key={i} className={clsx(
+              "card p-6 border-l-4 transition-all duration-300",
+              isCorrect ? "border-l-green-500 bg-green-50/30 dark:bg-green-950/10" : "border-l-red-500 bg-red-50/30 dark:bg-red-950/10"
+            )}>
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <p className="font-semibold text-gray-900 dark:text-white text-lg">{i + 1}. {q.question}</p>
+                {isCorrect ? <CheckCircle className="text-green-500 shrink-0" size={24} /> : <XCircle className="text-red-500 shrink-0" size={24} />}
+              </div>
+
+              {q.options ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                  {Object.entries(q.options).map(([k, v]) => {
+                    const isSelected = answers[i] === k;
+                    const isTheRightAnswer = q.answer === k;
+                    return (
+                      <div key={k} className={clsx(
+                        "p-3 rounded-lg border text-sm font-medium",
+                        isTheRightAnswer ? "bg-green-100 dark:bg-green-900/30 border-green-500 text-green-700 dark:text-green-400" :
+                        isSelected ? "bg-red-100 dark:bg-red-900/30 border-red-500 text-red-700 dark:text-red-400" :
+                        "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"
+                      )}>
+                        <strong>{k}.</strong> {v}
+                        {isTheRightAnswer && <span className="ml-2 text-[10px] uppercase font-bold text-green-600 dark:text-green-500">(Correct)</span>}
+                        {isSelected && !isCorrect && <span className="ml-2 text-[10px] uppercase font-bold text-red-600 dark:text-red-500">(Your Choice)</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-2 mb-4">
+                  <p className="text-sm"><span className="text-gray-400">Your Answer:</span> <span className={isCorrect ? "text-green-600 font-bold" : "text-red-600 font-bold"}>{answers[i] || "(Empty)"}</span></p>
+                  {!isCorrect && <p className="text-sm"><span className="text-gray-400">Correct Answer:</span> <span className="text-green-600 font-bold">{q.answer}</span></p>}
+                </div>
+              )}
+
+              {q.explanation && (
+                <div className="mt-4 p-4 rounded-lg bg-white/50 dark:bg-black/20 border border-dashed border-gray-200 dark:border-gray-700">
+                  <p className="text-xs font-bold text-brand-600 dark:text-brand-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                    <AlertCircle size={12} /> Explanation
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed italic">{q.explanation}</p>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      {result.percentage >= 60 ? (
-        <div className="flex items-center justify-center gap-2 text-green-600"><CheckCircle size={20} /> Great job!</div>
-      ) : (
-        <div className="flex items-center justify-center gap-2 text-red-500"><XCircle size={20} /> Keep practising!</div>
-      )}
-      <button onClick={() => setStep("config")} className="btn-primary mx-auto">Try Another Quiz</button>
+
+      <div className="flex gap-4 pt-4 pb-10">
+        <button onClick={() => setStep("config")} className="btn-primary flex-1 justify-center py-3">
+          <RotateCcw size={18} /> New Quiz
+        </button>
+        <button onClick={() => window.print()} className="btn-secondary flex-1 justify-center py-3">
+          Download PDF Report
+        </button>
+      </div>
     </div>
   );
 

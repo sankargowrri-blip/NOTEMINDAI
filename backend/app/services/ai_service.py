@@ -55,7 +55,9 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     
     user_prompt = ""
     if note_text and len(note_text.strip()) > 50:
-        user_prompt += f"NOTE TEXT:\n{note_text}\n\n"
+        # Truncate note text to stay within Groq TPM limits (~3000 tokens / 12k chars)
+        safe_note_text = note_text[:12000] if len(note_text) > 12000 else note_text
+        user_prompt += f"NOTE TEXT:\n{safe_note_text}\n\n"
     else:
         is_web = True
     

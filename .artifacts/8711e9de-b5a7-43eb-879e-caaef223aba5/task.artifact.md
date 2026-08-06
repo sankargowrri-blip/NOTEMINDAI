@@ -1,12 +1,11 @@
-# Task List - AI Voice & Context Fix
+# Task List - AI Rate Limit & Quiz Feedback
 
-- `[x]` Refine Voice AI Logic
-    - `[x]` Implement persistent speaker state (On/Off)
-    - `[x]` Add "Replay Voice" button to chat messages
-    - `[x]` Add "Speaking" animation to UI
-- `[x]` Improve Note Context
-    - `[x]` Add Note Selector dropdown to AI Chat page
-    - `[x]` Update backend prompts for missing context handling
-- `[x]` Final Synchronization
-    - `[x]` Push code to GitHub
-    - `[x]` Redeploy Frontend (Vercel) & Backend (Render)
+- `[/]` Optimize AI Request Size
+    - `[ ]` Implement text truncation in `ai_service.py` to avoid Groq TPM limits
+- `[/]` Enhance Quiz Feedback UI
+    - `[ ]` Update `quiz/page.tsx` to show detailed results per question
+    - `[ ]` Implement Green/Red color coding for answers
+    - `[ ]` Display question explanations on the result page
+- `[ ]` Final Synchronization
+    - `[ ]` Push code to GitHub
+    - `[ ]` Redeploy Frontend (Vercel) & Backend (Render)
