@@ -6,6 +6,7 @@ from sqlalchemy import select
 from pydantic import BaseModel, Field
 import json
 import re
+import random
 
 from app.db.postgres import get_db
 from app.models.user import User
@@ -45,10 +46,17 @@ async def create_quiz(
 
     text = note.refined_text or note.raw_ocr_text or ""
     
-    # Hybrid Context
+    # Hybrid Context with Randomized Search Queries for variety
     web_context = ""
     try:
-        search_query = f"{note.subject} {note.title}" if note.subject else note.title
+        search_modifiers = [
+            "concepts", "advanced details", "practical examples", 
+            "applications", "interview questions", "summary and facts",
+            "detailed study guide", "main principles"
+        ]
+        modifier = random.choice(search_modifiers)
+        search_query = f"{note.subject or ''} {note.title} {modifier}".strip()
+        
         web_results = await search_tool.search(search_query)
         if web_results:
             web_context = json.dumps(web_results)
