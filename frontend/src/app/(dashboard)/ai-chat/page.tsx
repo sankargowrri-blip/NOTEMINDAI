@@ -1,10 +1,13 @@
 "use client";
-import { useState, useRef, useEffect, Suspense, useCallback } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { aiApi, notesApi } from "@/lib/api";
-import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark, RefreshCw } from "lucide-react";
+import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark, RefreshCw, Palette } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import Mermaid from "@/components/Mermaid";
 
 interface Message {
   role: "user" | "assistant";
@@ -15,12 +18,12 @@ interface Message {
 
 const PROMPT_MODES = [
   "Explain this chapter",
-  "Explain in simple language",
-  "Generate examples",
-  "What are the important topics?",
-  "Give interview questions",
-  "List all formulas",
-  "Compare the main concepts",
+  "Summarize key points",
+  "Draw a Flowchart",
+  "Give real-world examples",
+  "Important topics for exam",
+  "List formulas",
+  "Doubt: How does this work?",
 ];
 
 function AIChatContent() {
@@ -41,12 +44,10 @@ function AIChatContent() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const recognition = useRef<any>(null);
 
-  // Persistence for Mute state
   useEffect(() => {
     const saved = localStorage.getItem("ai_chat_muted");
     if (saved !== null) setIsMuted(saved === "true");
 
-    // Fetch notes for the selector
     const fetchNotes = async () => {
       try {
         const res = await notesApi.list();
@@ -65,7 +66,6 @@ function AIChatContent() {
   }, [isMuted]);
 
   useEffect(() => {
-    // Load history
     const loadHistory = async () => {
       try {
         const res = await aiApi.history();
@@ -76,7 +76,7 @@ function AIChatContent() {
         } else {
           setMessages([{
             role: "assistant",
-            content: "Hi! I'm your AI study assistant. Pick a note below and ask me anything, or use your voice!",
+            content: "Hi! I'm your AI study assistant. I can explain your notes, search the web for doubts, and even draw diagrams. Pick a note below and let's start!",
           }]);
         }
       } catch (e) {
@@ -85,7 +85,6 @@ function AIChatContent() {
     };
     loadHistory();
 
-    // Initialize Speech Recognition
     if (typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       recognition.current = new SpeechRecognition();
@@ -113,7 +112,8 @@ function AIChatContent() {
     if (isMuted || typeof window === "undefined" || !window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
+      const cleanText = text.replace(/```mermaid[\s\S]*?```/g, "").replace(/\[Notes\]|\[Web\]/g, "");
+      const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);
       window.speechSynthesis.speak(utterance);
@@ -227,6 +227,7 @@ function AIChatContent() {
             onClick={() => send(p)}
             className="whitespace-nowrap text-[10px] md:text-xs px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-brand-500 hover:text-brand-600 transition-all shadow-sm"
           >
+            {p === "Draw a Flowchart" ? <Palette size={12} className="inline mr-1" /> : null}
             {p}
           </button>
         ))}
@@ -249,13 +250,33 @@ function AIChatContent() {
                   ? "bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-900 dark:text-gray-100"
                   : "bg-brand-600 text-white"
               )}>
-                {msg.content}
+                {msg.role === "assistant" ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code({ inline, className, children, ...props }: any) {
+                        const match = /language-mermaid/.exec(className || "");
+                        return !inline && match ? (
+                          <Mermaid chart={String(children).replace(/\n$/, "")} />
+                        ) : (
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        );
+                      },
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
               </div>
               <div className="flex items-center justify-between w-full mt-2 px-1">
                 <div className="flex items-center gap-2">
                   {msg.is_web && (
                     <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
-                      Internet
+                      Internet Augmented
                     </span>
                   )}
                   {msg.sources && msg.sources.length > 0 && (
@@ -290,7 +311,7 @@ function AIChatContent() {
         ))}
         {loading && (
           <div className="flex gap-3">
-            <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white">
+            <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-sm">
               <Sparkles size={18} />
             </div>
             <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl px-5 py-3 shadow-sm">

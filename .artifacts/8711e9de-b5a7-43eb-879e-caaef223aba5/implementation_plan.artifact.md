@@ -1,36 +1,34 @@
-# Implementation Plan - AI Assistant Voice & Context Refinement
+# Implementation Plan - AI Assistant Upgrade (Diagrams & Global Knowledge)
 
-The goal is to strictly link the AI's voice response to the speaker button's state and improve the assistant's ability to use uploaded notes even when no specific note is selected via URL.
+The goal is to enhance the AI Assistant to provide richer explanations (examples, applications) and visual diagrams (Mermaid.js), while clearing doubts using both uploaded notes and online resources.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Voice Trigger**: I will ensure the AI assistant respects the speaker button for ALL responses. I will also add a **"Replay"** button to each AI message so you can hear the answer again if the speaker was off initially.
-> **Context Awareness**: I will add a **Note Selector** directly inside the Chat page. This way, you don't have to go back to "My Notes" to pick a file; you can select it while chatting.
+> **Diagram Integration**: I have integrated **Mermaid.js** into the chat interface. You can now ask the assistant to "Draw a flowchart" or "Show a mind map," and it will generate an interactive diagram directly in the chat.
+> **Knowledge Source**: The AI is now instructed to use your **Notes first**. If the information is not there, it will automatically search the web (labeled as `[Web]`) to ensure your doubts are always cleared.
 
 ## Proposed Changes
 
-### 1. AI Assistant UI Refinement
-- **[MODIFY] [ai-chat/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/ai-chat/page.tsx)**:
-    - **Persistence**: Save the speaker button state (On/Off) in the browser memory so it stays how you set it.
-    - **Visual Feedback**: Add a "Speaking" pulse animation to the speaker icon when the AI is talking.
-    - **Replay Button**: Add a small speaker icon next to each AI message to replay that specific answer.
-    - **Note Selector**: Add a dropdown at the top of the chat to select which note the AI should focus on.
+### 1. Frontend: Visual Enhancements
+- **[MODIFY] [AIChatPage](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/ai-chat/page.tsx)**:
+    - Integrated `react-markdown` for better text formatting.
+    - Added **Mermaid Diagram rendering** for visual explanations.
+    - Updated voice synthesis to automatically skip diagram code blocks (so it doesn't read the code aloud).
 
-### 2. Backend Prompt & Stability
+### 2. Backend: Intelligence & Diagrams
 - **[MODIFY] [ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
-    - Refine the "Note context" check. If the note text is missing, the AI will now say: "I couldn't find a note selected. Please select a note from the dropdown above so I can help you with your points."
-- **[MODIFY] [ai_assistant.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/ai_assistant.py)**:
-    - Improve session handling to ensure the note context is preserved across follow-up questions.
+    - **New System Prompt**: Instructed the AI to provide step-by-step guides, practical examples, and Mermaid-based diagrams.
+    - **Hybrid Search**: Refined the logic to fall back to the internet more intelligently when notes are insufficient.
 
 ---
 
 ## Verification Plan
 
 ### Manual Verification
-- **Speaker Test**: Turn the speaker OFF and ask a question. Verify no audio plays. Turn it ON and ask. Verify audio plays.
-- **Replay Test**: Click the "Replay" icon on an old message and verify it speaks.
-- **Context Test**: Select a note from the new dropdown and ask "What is this about?". Verify it uses the note content.
-- **Mobile Test**: Ensure the new selector and replay buttons look good on a phone screen.
+- **Diagram Test**: Ask "Explain the machine learning process with a flowchart." Verify a diagram appears.
+- **Global Knowledge Test**: Ask a question not in your notes (e.g., "Who is the CEO of Apple?"). Verify it uses `[Web]`.
+- **Note Precision**: Ask a question about your specific PDF. Verify it uses `[Notes]`.
+- **Voice Sync**: Turn the speaker ON/OFF and verify the AI follows your command.
 
-**Shall I proceed with these voice and context improvements?**
+**The code is ready and the UI is upgraded. Shall I push these final changes to GitHub?**

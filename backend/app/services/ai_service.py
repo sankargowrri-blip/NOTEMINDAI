@@ -1,4 +1,4 @@
-"""AI service using Groq. Precision-locked to note text (Memory Optimized)."""
+"""AI service using Groq. Precision-locked to note text with Diagram support."""
 from __future__ import annotations
 import json, re, logging
 from app.config import settings
@@ -7,7 +7,7 @@ from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Optional[List[Dict]] = None) -> str:
+async def _chat(system: str, user: str, max_tokens: int = 4096, messages: Optional[List[Dict]] = None) -> str:
     """Call Groq using Async client for better performance."""
     groq_key = getattr(settings, "groq_api_key", "")
     if groq_key and groq_key.startswith("gsk_"):
@@ -17,9 +17,8 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
-                # Filter out system messages from history to avoid conflicts
                 history = [m for m in messages if m.get("role") != "system"]
-                chat_messages.extend(history[-5:]) 
+                chat_messages.extend(history[-8:]) # Increased history context
             chat_messages.append({"role": "user", "content": user})
             
             resp = await client.chat.completions.create(
@@ -35,38 +34,44 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
 
 async def rag_chat(user_id: str, question: str, note_text: str = "", history: List[Dict] = None) -> dict:
     """
-    RAG Chat. 
-    Strictly follows notes if available. 
-    Falls back to web search ONLY if notes are explicitly missing or the user asks for external info.
+    Enhanced RAG Chat with Hybrid Search and Diagram Support.
     """
     
     is_web = False
     
+    # SYSTEM PROMPT FOR RICH EXPLANATIONS & DIAGRAMS
+    system = (
+        "You are NoteMind AI, an expert study assistant. Your goal is to clear any doubt the student has. "
+        "1. GROUNDING: Use the provided [NOTE TEXT] first. If information is missing, use your internal knowledge and [WEB SEARCH]. "
+        "2. STRUCTURE: Provide step-by-step explanations, clear definitions, and real-world examples. "
+        "3. DIAGRAMS: If a student asks for a diagram, or if a flowchart/mindmap would help explain a complex process, "
+        "generate it using Mermaid.js syntax inside triple backticks like this: ```mermaid ... ```. "
+        "Supported diagrams: flowchart (graph TD), mindmap, sequenceDiagram, pie, gantt, etc. "
+        "4. CODING: If the topic is programming, provide sample code snippets. "
+        "5. TONE: Always prefix answers with [Notes] if from study material, or [Web] if from external resources."
+    )
+    
+    user_prompt = ""
     if note_text and len(note_text.strip()) > 50:
-        # Note found - STRICT GROUNDING
-        system = (
-            "You are NoteMind AI. Answer strictly using the note text provided below. "
-            "Always prefix your answer with [Notes]. "
-            "If the question is not answerable from the notes, say: 'I'm sorry, I couldn't find that in your notes. Would you like me to search the web instead?'"
-        )
-        user_prompt = f"NOTE TEXT:\n{note_text}\n\nQUESTION: {question}"
+        user_prompt += f"NOTE TEXT:\n{note_text}\n\n"
     else:
-        # No note selected or note is empty - WEB SEARCH FALLBACK
         is_web = True
-        system = (
-            "You are NoteMind AI. I couldn't find any relevant notes selected. "
-            "I have searched the internet to help you. Prefix your answer with [Web]. "
-            "Remind the user to select a note from the dropdown if they want answers based on their study material."
-        )
+    
+    # Internet Search Fallback for complex questions or missing notes
+    if is_web or any(word in question.lower() for word in ["latest", "recent", "who is", "what is the current"]):
         web_results = await search_tool.search(question)
-        user_prompt = f"WEB SEARCH RESULTS:\n{json.dumps(web_results)}\n\nQUESTION: {question}"
+        if web_results:
+            user_prompt += f"WEB SEARCH RESULTS:\n{json.dumps(web_results)}\n\n"
+            is_web = True
+
+    user_prompt += f"QUESTION: {question}"
 
     answer = await _chat(system, user_prompt, messages=history)
     
     return {
         "answer": answer,
-        "sources": ["notes"] if not is_web else ["web"],
-        "is_web": is_web
+        "sources": ["notes"] if "[Notes]" in answer else (["web"] if is_web else []),
+        "is_web": is_web or "[Web]" in answer
     }
 
 async def generate_summary(text: str, mode: str = "bullet") -> str:
@@ -75,19 +80,18 @@ async def generate_summary(text: str, mode: str = "bullet") -> str:
     return await _chat(system, prompt)
 
 async def simplify_note(text: str, level: str = "school") -> str:
-    system = f"Explain this text like I am a {level} student. Use simple language and analogies. Use ONLY info from the text."
+    system = f"Explain this text like I am a {level} student. Use simple language and analogies."
     prompt = f"Text to simplify:\n\n{text}"
     return await _chat(system, prompt)
 
 async def extract_keywords(text: str) -> dict:
-    system = "You are an extractor. Return JSON ONLY: {\"keywords\":[], \"definitions\":[]}. Use ONLY info from the text."
+    system = "You are an extractor. Return JSON ONLY: {\"keywords\":[], \"definitions\":[]}"
     prompt = f"Extract from this text:\n\n{text}"
     raw = await _chat(system, prompt)
     try:
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         return json.loads(match.group()) if match else {"keywords":[], "definitions":[]}
-    except Exception:
-        return {"keywords":[], "definitions":[]}
+    except Exception: return {"keywords":[], "definitions":[]}
 
 async def translate_note(text: str, target_language: str) -> str:
     system = f"Translate to {target_language}. Use ONLY the text provided."
@@ -95,30 +99,27 @@ async def translate_note(text: str, target_language: str) -> str:
 
 async def generate_big_questions(text: str) -> List[Dict]:
     system = (
-        "Generate 3 university-style long questions (10-16 marks) based STRICTLY on the notes provided. "
-        "For each question, provide a structured outline of how to answer it. "
+        "Generate 3 university-style long questions (10-16 marks) based on the notes. "
+        "For each question, provide a structured outline including Introduction, Architecture, Working, Applications, and Conclusion. "
         "Return as JSON list: [{\"question\": \"...\", \"marks\": 15, \"outline\": [\"...\", \"...\"]}]"
     )
     prompt = f"Notes:\n\n{text}"
     raw = await _chat(system, prompt)
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        return []
-    except Exception:
-        return []
+        return json.loads(match.group()) if match else []
+    except Exception: return []
 
 async def generate_mind_map(text: str) -> dict:
-    system = "Generate a Mermaid mindmap for the following text. Return ONLY the mermaid code starting with mindmap."
+    system = "Generate a Mermaid mindmap for the following text. Return ONLY the mermaid code block."
     return {"code": await _chat(system, text)}
 
 async def generate_flowchart(text: str) -> dict:
-    system = "Generate a Mermaid flowchart for the following text. Return ONLY the mermaid code starting with graph TD."
+    system = "Generate a Mermaid flowchart for the following text. Return ONLY the mermaid code block starting with graph TD."
     return {"code": await _chat(system, text)}
 
 async def predict_exam_topics(text: str, weak_topics: List[str]) -> List[str]:
-    system = "Identify most likely exam topics based STRICTLY on the notes and weak areas."
+    system = "Identify most likely exam topics based on the notes and weak areas."
     prompt = f"Notes: {text}\nWeak Areas: {weak_topics}"
     raw = await _chat(system, prompt)
     return [t.strip() for t in raw.split("\n") if t.strip()]
