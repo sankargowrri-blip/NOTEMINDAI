@@ -44,22 +44,24 @@ export default function QuizPage() {
   };
 
   const getCorrectKey = (q: Question) => {
+    if (!q.answer) return null;
     const correctStr = String(q.answer).trim().toUpperCase();
 
-    // 1. Exact match with a key (A, B, C, D)
+    // 1. Direct letter match (A, B, C, D)
     if (q.options && q.options[correctStr]) return correctStr;
 
-    // 2. Is it a letter prefix? "A." -> "A"
+    // 2. Normalize and check letter prefix (e.g. "A. Option Text")
     const firstChar = correctStr.charAt(0);
     if ("ABCD".includes(firstChar) && (correctStr.length === 1 || ". )".includes(correctStr.charAt(1)))) {
         return firstChar;
     }
 
-    // 3. Fallback: match full text against option values
+    // 3. Fuzzy Text match (match option text inside answer string)
     if (q.options) {
       const normCorrect = normalize(q.answer);
       for (const [key, value] of Object.entries(q.options)) {
-        if (normalize(value) === normCorrect || normCorrect.includes(normalize(value))) {
+        const normVal = normalize(value);
+        if (normVal === normCorrect || normCorrect.includes(normVal) || normVal.includes(normCorrect)) {
           return key;
         }
       }
@@ -97,16 +99,15 @@ export default function QuizPage() {
   const exportToExcel = () => {
     if (!quiz || !result) return;
     const data = quiz.questions.map((q, i) => {
-      const correctKey = getCorrectKey(q);
-      const userKey = answers[i];
-      const isCorrect = userKey === correctKey;
+      const ck = getCorrectKey(q);
+      const uk = answers[i];
       return {
         "No": i + 1,
         "Question": q.question,
         "Options": q.options ? Object.entries(q.options).map(([k, v]) => `${k}: ${v}`).join(" | ") : "N/A",
-        "Your Answer": userKey || "Skipped",
-        "Correct Answer": correctKey || q.answer,
-        "Result": isCorrect ? "CORRECT" : "WRONG",
+        "Your Answer": uk || "Skipped",
+        "Correct Answer": ck || q.answer,
+        "Result": uk === ck ? "CORRECT" : "WRONG",
         "Explanation": q.explanation || ""
       };
     });

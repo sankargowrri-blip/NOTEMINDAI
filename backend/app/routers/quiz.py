@@ -133,10 +133,13 @@ async def submit_quiz(
                 score += 1
                 continue
 
-            # 3. Text match fallback (If correct answer was the full string)
+            # 3. Fuzzy Text match fallback (CRITICAL: Handle sentence answers)
             if q.get("options"):
                 opt_text = str(q.get("options", {}).get(user_ans, "")).strip().upper()
-                if opt_text and (opt_text == correct_ans or _normalize(opt_text) == _normalize(correct_ans)):
+                norm_opt = _normalize(opt_text)
+                norm_correct = _normalize(correct_ans)
+                # Match if option text is exactly correct OR if correct answer contains the option text
+                if norm_opt and (norm_opt == norm_correct or norm_opt in norm_correct or norm_correct in norm_opt):
                     score += 1
 
     attempt = QuizAttempt(
