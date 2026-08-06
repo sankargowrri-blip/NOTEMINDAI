@@ -46,7 +46,8 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
         "2. STRUCTURE: Provide step-by-step explanations, clear definitions, and real-world examples. "
         "3. DIAGRAMS: If a student asks for a diagram, or if a flowchart/mindmap would help explain a complex process, "
         "generate it using Mermaid.js syntax inside triple backticks like this: ```mermaid ... ```. "
-        "Supported diagrams: flowchart (graph TD), mindmap, sequenceDiagram, pie, gantt, etc. "
+        "CRITICAL: The code inside triple backticks must contain ONLY Mermaid syntax. Do NOT include 'Diagram:', titles, or comments inside the code block. "
+        "Start directly with 'graph TD', 'sequenceDiagram', etc. "
         "4. CODING: If the topic is programming, provide sample code snippets. "
         "5. TONE: Always prefix answers with [Notes] if from study material, or [Web] if from external resources."
     )
@@ -58,7 +59,15 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
         is_web = True
     
     # Internet Search Fallback for complex questions or missing notes
-    if is_web or any(word in question.lower() for word in ["latest", "recent", "who is", "what is the current"]):
+    should_search = False
+    if is_web:
+        should_search = True
+    else:
+        keywords = ["latest", "recent", "who is", "what is the current", "news", "today"]
+        if any(word in question.lower() for word in keywords):
+            should_search = True
+
+    if should_search:
         web_results = await search_tool.search(question)
         if web_results:
             user_prompt += f"WEB SEARCH RESULTS:\n{json.dumps(web_results)}\n\n"

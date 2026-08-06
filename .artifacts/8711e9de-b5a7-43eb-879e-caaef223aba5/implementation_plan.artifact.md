@@ -1,34 +1,33 @@
-# Implementation Plan - AI Assistant Upgrade (Diagrams & Global Knowledge)
+# Implementation Plan - Mermaid Diagram Stability Fix
 
-The goal is to enhance the AI Assistant to provide richer explanations (examples, applications) and visual diagrams (Mermaid.js), while clearing doubts using both uploaded notes and online resources.
+The goal is to resolve the "Syntax error" in Mermaid diagrams and ensure the AI generates 100% valid diagram code.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Diagram Integration**: I have integrated **Mermaid.js** into the chat interface. You can now ask the assistant to "Draw a flowchart" or "Show a mind map," and it will generate an interactive diagram directly in the chat.
-> **Knowledge Source**: The AI is now instructed to use your **Notes first**. If the information is not there, it will automatically search the web (labeled as `[Web]`) to ensure your doubts are always cleared.
+> **Robust Rendering**: I am switching the diagram engine to use a modern rendering method that handles errors gracefully. Instead of a red box, if a diagram fails, it will show a "Try again" button and the raw text so you can still read the explanation.
+> **Prompt Tuning**: I am updating the AI's internal "Brain" to be extremely strict. It will be instructed to ONLY produce valid Mermaid syntax without any conversational filler inside the code blocks.
 
 ## Proposed Changes
 
-### 1. Frontend: Visual Enhancements
-- **[MODIFY] [AIChatPage](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/ai-chat/page.tsx)**:
-    - Integrated `react-markdown` for better text formatting.
-    - Added **Mermaid Diagram rendering** for visual explanations.
-    - Updated voice synthesis to automatically skip diagram code blocks (so it doesn't read the code aloud).
+### 1. Frontend: Robust Diagram Component
+- **[MODIFY] [Mermaid.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/components/Mermaid.tsx)**:
+    - Use `mermaid.render` API for reliable SVG generation.
+    - Add error handling to prevent the whole page from showing "Syntax Error".
+    - Auto-clean the input string (remove common AI mistakes like "Diagram:" or "Here is the code:").
 
-### 2. Backend: Intelligence & Diagrams
+### 2. Backend: Strict Syntax Enforcement
 - **[MODIFY] [ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
-    - **New System Prompt**: Instructed the AI to provide step-by-step guides, practical examples, and Mermaid-based diagrams.
-    - **Hybrid Search**: Refined the logic to fall back to the internet more intelligently when notes are insufficient.
+    - **Prompt Update**: "When generating diagrams, start exactly with the diagram type (e.g., 'graph TD'). Do NOT add titles or labels inside the code block."
+    - **Python Fix**: Resolve the `any` reference issue and optimize the hybrid search logic.
 
 ---
 
 ## Verification Plan
 
 ### Manual Verification
-- **Diagram Test**: Ask "Explain the machine learning process with a flowchart." Verify a diagram appears.
-- **Global Knowledge Test**: Ask a question not in your notes (e.g., "Who is the CEO of Apple?"). Verify it uses `[Web]`.
-- **Note Precision**: Ask a question about your specific PDF. Verify it uses `[Notes]`.
-- **Voice Sync**: Turn the speaker ON/OFF and verify the AI follows your command.
+- **Stress Test**: Ask the AI for a "Complex Flowchart of a Banking System." Verify it renders without syntax errors.
+- **Auto-Correction Test**: If the AI makes a small mistake, the new `Mermaid.tsx` should attempt to strip invalid lines before rendering.
+- **Theme Test**: Ensure diagrams look good in both Dark and Light modes.
 
-**The code is ready and the UI is upgraded. Shall I push these final changes to GitHub?**
+**I am applying these stability fixes now. No action needed on your part until the final deploy.**
