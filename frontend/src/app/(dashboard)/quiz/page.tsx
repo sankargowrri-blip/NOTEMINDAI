@@ -38,37 +38,33 @@ export default function QuizPage() {
   const normalize = (text: string) => {
     return String(text)
       .toLowerCase()
-      .replace(/^[a-d][.)\s-]+/, "") // Remove "A. ", "B-", "C) " etc.
+      .replace(/^[a-d][.)\s-]+/, "")
       .replace(/\s+/g, " ")
       .trim();
   };
 
-  const checkIsCorrect = (q: Question, userAnswer: string) => {
-    if (!userAnswer) return false;
+  const getCorrectKey = (q: Question) => {
+    const correctStr = String(q.answer).trim().toUpperCase();
 
-    const submitted = String(userAnswer).trim().toUpperCase(); // e.g., "A"
-    const correct = String(q.answer).trim().toUpperCase(); // e.g., "A" or the full text
+    // 1. Exact match with a key (A, B, C, D)
+    if (q.options && q.options[correctStr]) return correctStr;
 
-    // 1. Direct letter match (e.g. user selected 'A' and AI said 'A')
-    if (submitted.length === 1 && "ABCD".includes(submitted)) {
-      const correctLetter = correct.replace(/[.)\s]/g, "").slice(0, 1);
-      if (submitted === correctLetter) return true;
+    // 2. Is it a letter prefix? "A." -> "A"
+    const firstChar = correctStr.charAt(0);
+    if ("ABCD".includes(firstChar) && (correctStr.length === 1 || ". )".includes(correctStr.charAt(1)))) {
+        return firstChar;
     }
 
-    // 2. Full text normalization match
-    const normSubmitted = normalize(userAnswer);
-    const normCorrect = normalize(q.answer);
-    if (normSubmitted === normCorrect && normSubmitted !== "") return true;
-
-    // 3. Match user's letter choice against option text
-    if (q.options && q.options[submitted]) {
-      const normOption = normalize(q.options[submitted]);
-      if (normOption === normCorrect || normCorrect.includes(normOption) || normOption.includes(normCorrect)) {
-        return true;
+    // 3. Fallback: match full text against option values
+    if (q.options) {
+      const normCorrect = normalize(q.answer);
+      for (const [key, value] of Object.entries(q.options)) {
+        if (normalize(value) === normCorrect || normCorrect.includes(normalize(value))) {
+          return key;
+        }
       }
     }
-
-    return false;
+    return null;
   };
 
   const generateQuiz = async () => {
@@ -101,13 +97,15 @@ export default function QuizPage() {
   const exportToExcel = () => {
     if (!quiz || !result) return;
     const data = quiz.questions.map((q, i) => {
-      const isCorrect = checkIsCorrect(q, answers[i]);
+      const correctKey = getCorrectKey(q);
+      const userKey = answers[i];
+      const isCorrect = userKey === correctKey;
       return {
         "No": i + 1,
         "Question": q.question,
         "Options": q.options ? Object.entries(q.options).map(([k, v]) => `${k}: ${v}`).join(" | ") : "N/A",
-        "Your Answer": answers[i] || "Skipped",
-        "Correct Answer": q.answer,
+        "Your Answer": userKey || "Skipped",
+        "Correct Answer": correctKey || q.answer,
         "Result": isCorrect ? "CORRECT" : "WRONG",
         "Explanation": q.explanation || ""
       };
@@ -122,32 +120,34 @@ export default function QuizPage() {
   const exportToPDF = () => {
     if (!quiz || !result) return;
     const doc = new jsPDF();
-
     doc.setFontSize(22);
     doc.setTextColor(79, 88, 255);
     doc.text("NoteMind AI — Quiz Report", 14, 20);
-
     doc.setFontSize(12);
     doc.setTextColor(100);
     doc.text(`Topic: ${quiz.title}`, 14, 30);
     doc.text(`Score: ${result.score} / ${result.total} (${result.percentage}%)`, 14, 37);
     doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 44);
 
-    const tableData = quiz.questions.map((q, i) => [
-      i + 1,
-      q.question,
-      answers[i] || "-",
-      q.answer,
-      checkIsCorrect(q, answers[i]) ? "CORRECT" : "WRONG"
-    ]);
+    const tableData = quiz.questions.map((q, i) => {
+      const ck = getCorrectKey(q);
+      const uk = answers[i];
+      return [
+        i + 1,
+        q.question,
+        uk || "-",
+        ck || q.answer,
+        uk === ck ? "CORRECT" : "WRONG"
+      ];
+    });
 
     autoTable(doc, {
       startY: 55,
-      head: [['#', 'Question', 'Your Answer', 'Correct', 'Status']],
+      head: [['#', 'Question', 'Your Choice', 'Correct Answer', 'Status']],
       body: tableData,
       theme: 'striped',
       headStyles: { fillColor: [79, 88, 255] },
-      styles: { fontSize: 9 }
+      styles: { fontSize: 8 }
     });
 
     doc.save(`${quiz.title}_Report.pdf`);
@@ -260,7 +260,10 @@ export default function QuizPage() {
         </div>
 
         {quiz.questions.map((q, i) => {
-          const isCorrect = checkIsCorrect(q, answers[i]);
+          const correctKey = getCorrectKey(q);
+          const userKey = answers[i];
+          const isCorrect = userKey === correctKey;
+
           return (
             <div key={i} className={clsx(
               "card p-8 border-l-[6px] transition-all duration-300 shadow-md",
@@ -274,19 +277,19 @@ export default function QuizPage() {
               {q.options ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {Object.entries(q.options).map(([k, v]) => {
-                    const isUserChoice = answers[i] === k;
-                    const isRightAnswer = checkIsCorrect(q, k);
+                    const isRightAnswer = k === correctKey;
+                    const isUserIncorrectChoice = userKey === k && !isCorrect;
 
                     return (
                       <div key={k} className={clsx(
                         "p-5 rounded-2xl border-2 text-sm font-bold transition-all flex items-center justify-between gap-3",
                         isRightAnswer ? "bg-green-100/60 dark:bg-green-900/30 border-green-500 text-green-900 dark:text-green-400 ring-4 ring-green-500/10" :
-                        isUserChoice ? "bg-red-100/60 dark:bg-red-900/30 border-red-500 text-red-900 dark:text-red-400" :
+                        isUserIncorrectChoice ? "bg-red-100/60 dark:bg-red-900/30 border-red-500 text-red-900 dark:text-red-400" :
                         "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-400 opacity-50"
                       )}>
                         <span>{k}. {v}</span>
                         {isRightAnswer && <CheckCircle className="text-green-600 shrink-0" size={18} />}
-                        {isUserChoice && !isCorrect && <XCircle className="text-red-600 shrink-0" size={18} />}
+                        {isUserIncorrectChoice && <XCircle className="text-red-600 shrink-0" size={18} />}
                       </div>
                     );
                   })}

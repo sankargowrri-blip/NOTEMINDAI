@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, Field
+import json
 
 from app.db.postgres import get_db
 from app.models.user import User
@@ -11,6 +12,7 @@ from app.models.note import Note
 from app.models.quiz import Quiz, QuizAttempt
 from app.routers.deps import get_current_user
 from app.services.quiz_service import generate_quiz
+from app.services.search_tool import search_tool
 
 router = APIRouter()
 
@@ -41,14 +43,29 @@ async def create_quiz(
         raise HTTPException(404, detail="Note not found")
 
     text = note.refined_text or note.raw_ocr_text or ""
-    if len(text.strip()) < 50:
-        raise HTTPException(422, detail="Note does not have enough content to generate questions.")
+    
+    # Hybrid Context: Get web results based on note subject/title
+    web_context = ""
+    try:
+        search_query = f"{note.subject} {note.title}" if note.subject else note.title
+        web_results = await search_tool.search(search_query)
+        if web_results:
+            web_context = json.dumps(web_results)
+    except Exception:
+        pass # Fallback to note-only if search fails
 
-    questions = generate_quiz(text, body.question_type, body.difficulty, body.count)
+    questions = generate_quiz(
+        note_text=text, 
+        web_context=web_context,
+        question_type=body.question_type, 
+        difficulty=body.difficulty, 
+        count=body.count
+    )
+    
     if not questions:
         raise HTTPException(
             422,
-            detail="Could not generate questions. Ensure your Groq API key is set in backend/.env."
+            detail="Could not generate questions. Ensure your Groq API key is set in backend settings."
         )
 
     quiz = Quiz(
@@ -96,25 +113,21 @@ async def submit_quiz(
         raise HTTPException(404, detail="Quiz not found")
 
     score = 0
+    # The frontend now identifies the 'CorrectKey' based on strict 1-to-1 matching.
+    # We maintain this logic here for the DB record.
     for i, q in enumerate(quiz.questions):
         if i < len(body.answers):
-            submitted = str(body.answers[i].get("answer", "")).strip().upper()
-            correct = str(q.get("answer", "")).strip().upper()
+            user_ans = str(body.answers[i].get("answer", "")).strip().upper()
+            correct_ans = str(q.get("answer", "")).strip().upper()
             
-            # Case 1: MCQ with letter answers
-            if submitted == correct:
+            # Use the same strict logic as frontend to count score
+            if user_ans == correct_ans:
                 score += 1
-            # Case 2: Fallback - check if submitted text matches the option text
             elif q.get("options"):
-                # If user sent 'A' but correct was full text, or vice versa
-                opt_text = q.get("options", {}).get(submitted, "").strip().upper()
-                if opt_text and opt_text == correct:
+                # Check if the user sent full text instead of letter
+                correct_text = q.get("options", {}).get(correct_ans, "").strip().upper()
+                if user_ans == correct_text:
                     score += 1
-                # Check if correct is a letter and user sent full text
-                elif len(correct) == 1 and correct in "ABCD":
-                    correct_text = q.get("options", {}).get(correct, "").strip().upper()
-                    if submitted == correct_text:
-                        score += 1
 
     attempt = QuizAttempt(
         quiz_id=quiz.id,

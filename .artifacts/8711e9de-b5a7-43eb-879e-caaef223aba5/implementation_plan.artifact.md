@@ -1,39 +1,39 @@
-# Implementation Plan - Quiz Accuracy & Excel Export Fix
+# Implementation Plan - Hybrid Quizzes & Precise Evaluation
 
-The goal is to fix the quiz evaluation logic (correct answers being marked wrong), improve the results UI, and add an Excel export feature.
+The goal is to fix the "multiple correct answers" UI bug and implement hybrid quiz generation (Notes + Internet).
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Evaluation Logic**: I am updating the AI prompt to strictly return the **letter** (A, B, C, or D) for multiple-choice answers. I will also update the backend to check both the letter and the full text as a fallback to ensure 100% accuracy.
-> **Excel Export**: I will integrate the `xlsx` library on the frontend to allow you to download a detailed report of your quiz results.
+> **Hybrid Quiz Generation**: I will update the quiz engine to automatically search the web for supplementary information related to your note. This ensures the quiz is comprehensive and includes both your specific note points and general domain knowledge from the internet.
+> **Precise Evaluation**: I am moving away from "loose matching" for quiz results. The system will now identify exactly **one** correct answer (the intended one) and highlight it in green. Your selection will be red only if it does not match that single correct answer.
 
 ## Proposed Changes
 
-### 1. AI Service: Prompt Update
-- **[MODIFY] [quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**:
-    - Update instructions: "For MCQ, the 'answer' field must contain ONLY the letter of the correct option (e.g., 'A')."
-
-### 2. Backend: Robust Comparison
+### 1. Backend: Hybrid Quiz Service
+- **[MODIFY] [services/quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**:
+    - Update `generate_quiz` to accept optional `web_context`.
+    - Improve prompt to strictly enforce returning the **Letter** (A, B, C, D) as the primary answer format for MCQs.
 - **[MODIFY] [routers/quiz.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/quiz.py)**:
-    - Add logic to compare user input against both the option letter and the option text.
+    - Before generating, perform a web search based on the note's subject/title to gather "Web Context".
+    - Pass this context to the AI to generate a mix of note-based and general questions.
 
-### 3. Frontend: Results UI & Export
+### 2. Frontend: Accurate Quiz UI
 - **[MODIFY] [quiz/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/quiz/page.tsx)**:
-    - Add the **Excel Export** button.
-    - Improve the score display at the top of the review section.
-    - Ensure correct answers are highlighted in **Green** and wrong choices in **Red**.
+    - Implement `getCorrectKey` logic to identify the single "Source of Truth" answer.
+    - Update the rendering loop to ensure only the `correctKey` is green.
+    - Fix the scoring logic to perfectly match the visual indicators.
 
 ---
 
 ## Verification Plan
 
-### Automated Tests
--   `npm install xlsx` in the frontend.
-
 ### Manual Verification
--   **Accuracy Test**: Take an MCQ quiz, select the correct letter, and verify it's marked Green with a 100% score.
--   **Excel Test**: Click "Export to Excel" and verify the downloaded file contains the questions, your answers, and the correct answers.
--   **Visual Test**: Ensure the score "X out of Y" is clearly visible at the top of the results page.
+- **Hybrid Test**: Generate a quiz for a very short note. Verify that the AI generates 10 high-quality questions by pulling extra info from the web.
+- **Accuracy Test**: Take a quiz and intentionally get some wrong. Verify:
+    - Only 1 green box (the correct one).
+    - 1 red box (your wrong choice).
+    - Score matches the number of green checks where your choice was correct.
+- **Excel/PDF Test**: Verify the exported reports also show this accurate single-answer data.
 
-**Shall I proceed with these fixes and the new Excel feature?**
+**I am applying these fixes now to give you a 100% accurate, internet-powered study tool.**

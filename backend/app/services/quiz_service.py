@@ -1,4 +1,4 @@
-"""Quiz and Flashcard generation — Grounded strictly in note content."""
+"""Quiz and Flashcard generation — Grounded in notes + web context."""
 from __future__ import annotations
 import json, re, logging
 from app.config import settings
@@ -18,10 +18,9 @@ def _chat(prompt: str, max_tokens: int = 3000) -> str:
                     {
                         "role": "system", 
                         "content": (
-                            "You are a strict educational content creator. "
-                            "You ONLY generate content based on the text provided to you. "
-                            "Do NOT use external facts, general knowledge, or outside examples. "
-                            "If the text is insufficient, do your best using ONLY what is available."
+                            "You are a professional educational examiner. "
+                            "You generate challenging and accurate academic questions. "
+                            "Follow JSON instructions perfectly."
                         )
                     },
                     {"role": "user", "content": prompt},
@@ -36,7 +35,7 @@ def _chat(prompt: str, max_tokens: int = 3000) -> str:
     return "[]"
 
 
-def generate_quiz(note_text: str, question_type: str = "mcq",
+def generate_quiz(note_text: str, web_context: str = "", question_type: str = "mcq",
                   difficulty: str = "medium", count: int = 10) -> list[dict]:
     type_instructions = {
         "mcq": "multiple-choice questions with 4 options (A,B,C,D) and one correct answer",
@@ -46,18 +45,23 @@ def generate_quiz(note_text: str, question_type: str = "mcq",
     }
     q_desc = type_instructions.get(question_type, "questions")
     
+    context_block = f"NOTE CONTENT:\n{note_text}\n\n"
+    if web_context:
+        context_block += f"ADDITIONAL INTERNET CONTEXT:\n{web_context}\n\n"
+
     prompt = (
-        f"Generate exactly {count} {difficulty}-difficulty {q_desc} based STRICTLY on the note below.\n\n"
-        "Rules:\n"
-        "1. Every question must be answerable using ONLY the note text.\n"
-        "2. Do not use outside knowledge or examples.\n"
-        "3. Return a JSON array. Each item must have:\n"
+        f"Generate exactly {count} {difficulty}-difficulty {q_desc} based on the context provided.\n\n"
+        "Instructions:\n"
+        "1. Create a mix of questions from the 'NOTE CONTENT' and 'INTERNET CONTEXT'.\n"
+        "2. For MCQ: The 'answer' field MUST be exactly one letter: 'A', 'B', 'C', or 'D'.\n"
+        "3. Provide a clear 'explanation' for each answer.\n"
+        "4. Return a JSON array of objects. Each object must have:\n"
         "   - \"question\": the question text\n"
-        "   - \"answer\": for MCQ, this must be the LETTER of the correct option (e.g., 'A'). For others, the full correct text.\n"
-        "   - \"explanation\": why this is correct (citing the note)\n"
-        "   - For MCQ: \"options\": {\"A\":...,\"B\":...,\"C\":...,\"D\":...}\n\n"
-        f"NOTE CONTENT:\n{note_text}\n\n"
-        "Return ONLY the JSON array. No markdown, no intro text."
+        "   - \"answer\": the correct answer (LETTER for MCQ, text for others)\n"
+        "   - \"explanation\": brief educational explanation\n"
+        "   - \"options\": (FOR MCQ ONLY) {\"A\":...,\"B\":...,\"C\":...,\"D\":...}\n\n"
+        f"{context_block}"
+        "Return ONLY valid JSON array. No extra text."
     )
     
     raw = _chat(prompt, max_tokens=4000)
@@ -70,15 +74,12 @@ def generate_quiz(note_text: str, question_type: str = "mcq",
     return []
 
 
-def generate_flashcards(note_text: str, card_type: str = "standard",
-                        count: int = 20) -> list[dict]:
+def generate_flashcards(note_text: str, count: int = 20) -> list[dict]:
     prompt = (
         f"Generate exactly {count} flashcards from the note below.\n\n"
-        "Rules:\n"
-        "1. Use ONLY the information provided in the note.\n"
-        "2. Return a JSON array. Each item must have:\n"
-        "   - \"front\": A term, concept, or formula name from the note.\n"
-        "   - \"back\": The corresponding definition, explanation, or value from the note.\n\n"
+        "Return a JSON array. Each item must have:\n"
+        "- \"front\": A term or concept\n"
+        "- \"back\": The definition or explanation\n\n"
         f"NOTE CONTENT:\n{note_text}\n\n"
         "Return ONLY the JSON array."
     )
