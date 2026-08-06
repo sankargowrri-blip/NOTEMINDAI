@@ -53,7 +53,7 @@ def generate_quiz(note_text: str, question_type: str = "mcq",
         "2. Do not use outside knowledge or examples.\n"
         "3. Return a JSON array. Each item must have:\n"
         "   - \"question\": the question text\n"
-        "   - \"answer\": the correct answer (from the note)\n"
+        "   - \"answer\": for MCQ, this must be the LETTER of the correct option (e.g., 'A'). For others, the full correct text.\n"
         "   - \"explanation\": why this is correct (citing the note)\n"
         "   - For MCQ: \"options\": {\"A\":...,\"B\":...,\"C\":...,\"D\":...}\n\n"
         f"NOTE CONTENT:\n{note_text}\n\n"

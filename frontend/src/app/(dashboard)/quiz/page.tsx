@@ -3,8 +3,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { notesApi, quizApi } from "@/lib/api";
 import toast from "react-hot-toast";
-import { BookOpen, Loader2, ChevronRight, CheckCircle, XCircle, RotateCcw, AlertCircle } from "lucide-react";
+import { BookOpen, Loader2, ChevronRight, CheckCircle, XCircle, RotateCcw, AlertCircle, FileSpreadsheet } from "lucide-react";
 import clsx from "clsx";
+import * as XLSX from "xlsx";
 
 const QUESTION_TYPES = ["mcq", "fill_blank", "true_false", "one_word", "descriptive", "viva", "placement"];
 const DIFFICULTIES = ["easy", "medium", "hard"];
@@ -23,7 +24,7 @@ export default function QuizPage() {
   const [difficulty, setDifficulty] = useState("medium");
   const [count, setCount] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [quiz, setQuiz] = useState<{ quiz_id: number; questions: Question[] } | null>(null);
+  const [quiz, setQuiz] = useState<{ quiz_id: number; title: string; questions: Question[] } | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [result, setResult] = useState<{ score: number; total: number; percentage: number } | null>(null);
 
@@ -53,6 +54,36 @@ export default function QuizPage() {
     const res = await quizApi.submit(quiz.quiz_id, answersArr);
     setResult(res.data);
     setStep("result");
+  };
+
+  const exportToExcel = () => {
+    if (!quiz || !result) return;
+
+    const data = quiz.questions.map((q, i) => {
+      const isCorrect = String(answers[i]).trim().toUpperCase() === String(q.answer).trim().toUpperCase();
+      return {
+        "Question No": i + 1,
+        "Question": q.question,
+        "Options": q.options ? Object.entries(q.options).map(([k, v]) => `${k}: ${v}`).join(" | ") : "N/A",
+        "Your Answer": answers[i] || "(Skipped)",
+        "Correct Answer": q.answer,
+        "Status": isCorrect ? "Correct" : "Wrong",
+        "Explanation": q.explanation || ""
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Quiz Results");
+
+    // Summary row
+    XLSX.utils.sheet_add_aoa(worksheet, [
+      [],
+      ["Final Score", `${result.score} out of ${result.total}`, `${result.percentage}%`]
+    ], { origin: -1 });
+
+    XLSX.writeFile(workbook, `${quiz.title}_Report.xlsx`);
+    toast.success("Excel report downloaded!");
   };
 
   if (step === "config") return (
@@ -101,7 +132,7 @@ export default function QuizPage() {
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">Quiz — {quiz.questions.length} Questions</h1>
-        <span className="badge bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300">{difficulty}</span>
+        <span className="badge bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 capitalize">{difficulty}</span>
       </div>
       {quiz.questions.map((q, i) => (
         <div key={i} className="card p-5">
@@ -136,7 +167,7 @@ export default function QuizPage() {
         </div>
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Quiz Complete!</h2>
-          <p className="text-gray-500 mt-1">You scored <span className="font-bold text-gray-900 dark:text-white">{result.score}</span> out of {result.total}</p>
+          <p className="text-gray-500 mt-1 text-lg">You scored <span className="font-bold text-gray-900 dark:text-white">{result.score}</span> out of {result.total}</p>
         </div>
         {result.percentage >= 60 ? (
           <div className="flex items-center justify-center gap-2 text-green-600 font-medium bg-green-50 dark:bg-green-900/20 py-2 px-4 rounded-full w-max mx-auto border border-green-100 dark:border-green-800"><CheckCircle size={20} /> Great job!</div>
@@ -146,9 +177,12 @@ export default function QuizPage() {
       </div>
 
       <div className="space-y-6">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white px-1">Review Answers</h3>
+        <div className="flex items-center justify-between px-1">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Review Answers</h3>
+            <p className="text-sm font-medium text-brand-600 dark:text-brand-400">Score: {result.score}/{result.total}</p>
+        </div>
         {quiz.questions.map((q, i) => {
-          const isCorrect = String(answers[i]).trim().toLowerCase() === String(q.answer).trim().toLowerCase();
+          const isCorrect = String(answers[i]).trim().toUpperCase() === String(q.answer).trim().toUpperCase();
           return (
             <div key={i} className={clsx(
               "card p-6 border-l-4 transition-all duration-300",
@@ -198,11 +232,14 @@ export default function QuizPage() {
         })}
       </div>
 
-      <div className="flex gap-4 pt-4 pb-10">
-        <button onClick={() => setStep("config")} className="btn-primary flex-1 justify-center py-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 pb-10">
+        <button onClick={() => setStep("config")} className="btn-primary justify-center py-3">
           <RotateCcw size={18} /> New Quiz
         </button>
-        <button onClick={() => window.print()} className="btn-secondary flex-1 justify-center py-3">
+        <button onClick={exportToExcel} className="btn-secondary justify-center py-3 bg-emerald-600 hover:bg-emerald-700 text-white border-none">
+          <FileSpreadsheet size={18} /> Export as Excel
+        </button>
+        <button onClick={() => window.print()} className="btn-secondary justify-center py-3">
           Download PDF Report
         </button>
       </div>

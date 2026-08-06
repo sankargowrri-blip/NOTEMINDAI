@@ -1,33 +1,39 @@
-# Implementation Plan - AI Rate Limit & Quiz Feedback
+# Implementation Plan - Quiz Accuracy & Excel Export Fix
 
-The goal is to fix the Groq Rate Limit error by reducing request size and to enhance the Quiz module with detailed visual feedback (correct/wrong answers).
+The goal is to fix the quiz evaluation logic (correct answers being marked wrong), improve the results UI, and add an Excel export feature.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **AI Token Management**: To prevent the "Request too large" error (Error 413), I will truncate the note text sent to the AI to approximately 3000 tokens. This ensures the request stays within the free tier's 6000 TPM limit while still providing enough context for a high-quality answer.
-> **Quiz Results**: I am updating the Quiz page so that after you click "Submit", you can see every question again with your answer marked in **Red (if wrong)** or **Green (if correct)**, along with the correct answer and a brief explanation.
+> **Evaluation Logic**: I am updating the AI prompt to strictly return the **letter** (A, B, C, or D) for multiple-choice answers. I will also update the backend to check both the letter and the full text as a fallback to ensure 100% accuracy.
+> **Excel Export**: I will integrate the `xlsx` library on the frontend to allow you to download a detailed report of your quiz results.
 
 ## Proposed Changes
 
-### 1. Backend: Token Optimization
-- **[MODIFY] [services/ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
-    - Implement a truncation helper to limit `note_text` to the first ~12,000 characters (approx 3,000 tokens).
-    - This prevents the "Requested 6255 tokens" error seen in your screenshot.
+### 1. AI Service: Prompt Update
+- **[MODIFY] [quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**:
+    - Update instructions: "For MCQ, the 'answer' field must contain ONLY the letter of the correct option (e.g., 'A')."
 
-### 2. Frontend: Detailed Quiz Results
+### 2. Backend: Robust Comparison
+- **[MODIFY] [routers/quiz.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/quiz.py)**:
+    - Add logic to compare user input against both the option letter and the option text.
+
+### 3. Frontend: Results UI & Export
 - **[MODIFY] [quiz/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/quiz/page.tsx)**:
-    - Update the "Result" step to display the question list.
-    - Add color-coding: Green for correctly answered options, Red for incorrect choices.
-    - Show the "Explanation" provided by the AI for each question.
+    - Add the **Excel Export** button.
+    - Improve the score display at the top of the review section.
+    - Ensure correct answers are highlighted in **Green** and wrong choices in **Red**.
 
 ---
 
 ## Verification Plan
 
-### Manual Verification
-- **Rate Limit Test**: Ask a question about a very long PDF. Verify the AI answers without the "Request too large" error.
-- **Quiz Feedback Test**: Complete a quiz with some wrong and some right answers. Verify the results page clearly shows the corrections in Green/Red.
-- **Score Verification**: Ensure the "X out of Y" score matches the visual feedback.
+### Automated Tests
+-   `npm install xlsx` in the frontend.
 
-**Shall I proceed with these fixes?**
+### Manual Verification
+-   **Accuracy Test**: Take an MCQ quiz, select the correct letter, and verify it's marked Green with a 100% score.
+-   **Excel Test**: Click "Export to Excel" and verify the downloaded file contains the questions, your answers, and the correct answers.
+-   **Visual Test**: Ensure the score "X out of Y" is clearly visible at the top of the results page.
+
+**Shall I proceed with these fixes and the new Excel feature?**

@@ -98,10 +98,23 @@ async def submit_quiz(
     score = 0
     for i, q in enumerate(quiz.questions):
         if i < len(body.answers):
-            submitted = str(body.answers[i].get("answer", "")).strip().lower()
-            correct = str(q.get("answer", "")).strip().lower()
+            submitted = str(body.answers[i].get("answer", "")).strip().upper()
+            correct = str(q.get("answer", "")).strip().upper()
+            
+            # Case 1: MCQ with letter answers
             if submitted == correct:
                 score += 1
+            # Case 2: Fallback - check if submitted text matches the option text
+            elif q.get("options"):
+                # If user sent 'A' but correct was full text, or vice versa
+                opt_text = q.get("options", {}).get(submitted, "").strip().upper()
+                if opt_text and opt_text == correct:
+                    score += 1
+                # Check if correct is a letter and user sent full text
+                elif len(correct) == 1 and correct in "ABCD":
+                    correct_text = q.get("options", {}).get(correct, "").strip().upper()
+                    if submitted == correct_text:
+                        score += 1
 
     attempt = QuizAttempt(
         quiz_id=quiz.id,
