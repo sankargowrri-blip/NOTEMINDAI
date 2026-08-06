@@ -1,4 +1,4 @@
-"""Quiz generation and attempt router."""
+"""Quiz generation and attempt router with randomized variety logic."""
 from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,22 +46,18 @@ async def create_quiz(
 
     text = note.refined_text or note.raw_ocr_text or ""
     
-    # Hybrid Context with Randomized Search Queries for variety
+    # Hybrid Context: Randomize search focus to ensure 120 unique student experiences
     web_context = ""
     try:
-        search_modifiers = [
-            "concepts", "advanced details", "practical examples", 
-            "applications", "interview questions", "summary and facts",
-            "detailed study guide", "main principles"
-        ]
-        modifier = random.choice(search_modifiers)
-        search_query = f"{note.subject or ''} {note.title} {modifier}".strip()
+        foci = ["details", "examples", "exam topics", "applications", "concepts", "fundamentals"]
+        search_focus = random.choice(foci)
+        search_query = f"{note.subject or ''} {note.title} {search_focus}".strip()
         
         web_results = await search_tool.search(search_query)
         if web_results:
             web_context = json.dumps(web_results)
     except Exception:
-        pass
+        pass # Fallback to note-only if web search fails
 
     questions = generate_quiz(
         note_text=text, 
@@ -72,12 +68,12 @@ async def create_quiz(
     )
     
     if not questions:
-        raise HTTPException(422, detail="Could not generate questions.")
+        raise HTTPException(422, detail="Could not generate questions. AI is currently busy.")
 
     quiz = Quiz(
         note_id=body.note_id,
         owner_id=current_user.id,
-        title=f"{note.title} — {body.question_type.upper()} Quiz",
+        title=f"{note.title} — {body.question_type.upper()} Exam",
         difficulty=body.difficulty,
         questions=questions,
     )
@@ -107,10 +103,28 @@ async def get_quiz(
     }
 
 
-def _normalize(text: str) -> str:
-    """Helper to strip punctuation and case for robust matching."""
-    if not text: return ""
-    return re.sub(r'^[A-D][.)\s-]+', '', str(text)).strip().upper()
+def _smart_match(user_ans: str, correct_ans: str, options: dict | None = None) -> bool:
+    """Accurately analyzes correct/incorrect answers across all formats."""
+    u = str(user_ans).strip().upper()
+    c = str(correct_ans).strip().upper()
+    
+    # 1. Direct match (A == A)
+    if u == c: return True
+    
+    # 2. Extract letter from AI sentence (e.g. AI said "The answer is A" -> "A")
+    clean_correct = re.sub(r'[^A-D]', '', c)[:1]
+    if u == clean_correct and u in "ABCD": return True
+
+    # 3. Match user choice (letter) against option text (Full match)
+    if options and u in "ABCD":
+        opt_text = str(options.get(u, "")).strip().upper()
+        # Clean both for fuzzy match
+        clean_opt = re.sub(r'^[A-D][.)\s-]+', '', opt_text)
+        clean_corr = re.sub(r'^[A-D][.)\s-]+', '', c)
+        if clean_opt and (clean_opt == clean_corr or clean_opt in clean_corr):
+            return True
+
+    return False
 
 
 @router.post("/submit")
@@ -127,28 +141,11 @@ async def submit_quiz(
     score = 0
     for i, q in enumerate(quiz.questions):
         if i < len(body.answers):
-            user_ans = str(body.answers[i].get("answer", "")).strip().upper()
-            correct_ans = str(q.get("answer", "")).strip().upper()
+            user_ans = body.answers[i].get("answer", "")
+            correct_ans = q.get("answer", "")
             
-            # 1. Direct match (A == A)
-            if user_ans == correct_ans:
+            if _smart_match(user_ans, correct_ans, q.get("options")):
                 score += 1
-                continue
-            
-            # 2. Normalize and check letter (e.g. AI said "A." but user sent "A")
-            clean_correct = re.sub(r'[^A-D]', '', correct_ans)[:1]
-            if user_ans == clean_correct and user_ans in "ABCD":
-                score += 1
-                continue
-
-            # 3. Fuzzy Text match fallback (CRITICAL: Handle sentence answers)
-            if q.get("options"):
-                opt_text = str(q.get("options", {}).get(user_ans, "")).strip().upper()
-                norm_opt = _normalize(opt_text)
-                norm_correct = _normalize(correct_ans)
-                # Match if option text is exactly correct OR if correct answer contains the option text
-                if norm_opt and (norm_opt == norm_correct or norm_opt in norm_correct or norm_correct in norm_opt):
-                    score += 1
 
     attempt = QuizAttempt(
         quiz_id=quiz.id,
@@ -160,6 +157,7 @@ async def submit_quiz(
     )
     db.add(attempt)
     await db.commit()
+    
     return {
         "score": score,
         "total": len(quiz.questions),
