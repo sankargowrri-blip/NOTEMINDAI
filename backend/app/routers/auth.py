@@ -108,11 +108,15 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
 @router.post("/forgot-password")
 async def forgot_password(body: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     """Generate reset token and send via email."""
+    logger.info(f"FORGOT_PASS_TRACE: Request for email {body.email}")
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
     if user:
+        logger.info(f"FORGOT_PASS_TRACE: User found, scheduling email...")
         reset_token = create_access_token({"sub": str(user.id), "purpose": "reset"})
         background_tasks.add_task(send_reset_password_email, user.email, reset_token)
+    else:
+        logger.warning(f"FORGOT_PASS_TRACE: No user found with email {body.email}")
     
     # Always return 200 for security
     return {"message": "If that email is registered, a reset link has been sent."}

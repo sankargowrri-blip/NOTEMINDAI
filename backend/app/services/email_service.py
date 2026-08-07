@@ -10,8 +10,10 @@ logger = logging.getLogger(__name__)
 
 def send_reset_password_email(email: str, token: str):
     """Send a professional password reset email using SMTP."""
+    logger.info(f"EMAIL_TRACE: Attempting to send reset email to {email}")
+    
     if not settings.smtp_user or not settings.smtp_password:
-        logger.error("SMTP credentials missing. Cannot send password reset email.")
+        logger.error("EMAIL_TRACE: SMTP_USER or SMTP_PASSWORD missing in Render Environment!")
         return False
 
     reset_url = f"{settings.frontend_url}/reset-password?token={token}"
