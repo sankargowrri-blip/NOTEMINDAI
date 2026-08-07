@@ -1,17 +1,25 @@
 """Authentication router: register, login, refresh, Google OAuth, forgot password."""
 from __future__ import annotations
+import logging
+import re
+import json
+from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
-import logging
-import re
-import json
 
 from app.db.postgres import get_db
 from app.models.user import User, UserRole
-from app.services.auth_service import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
+from app.services.auth_service import (
+    hash_password, 
+    verify_password, 
+    create_access_token, 
+    create_refresh_token, 
+    decode_token
+)
 from app.services.email_service import send_reset_password_email
+from app.config import settings
 
 router = APIRouter()
 logger = logging.getLogger("notemind")
@@ -113,7 +121,9 @@ async def forgot_password(body: ForgotPasswordRequest, background_tasks: Backgro
     user = result.scalar_one_or_none()
     if user:
         logger.info(f"FORGOT_PASS_TRACE: User found, scheduling email...")
-        reset_token = create_access_token({"sub": str(user.id), "purpose": "reset"})
+        # Create token with 60-minute expiry
+        expires = timedelta(minutes=settings.reset_token_expire_minutes)
+        reset_token = create_access_token({"sub": str(user.id), "purpose": "reset"}, expires_delta=expires)
         background_tasks.add_task(send_reset_password_email, user.email, reset_token)
     else:
         logger.warning(f"FORGOT_PASS_TRACE: No user found with email {body.email}")

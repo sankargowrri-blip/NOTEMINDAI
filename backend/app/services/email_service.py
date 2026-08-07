@@ -14,6 +14,7 @@ def send_reset_password_email(email: str, token: str):
     
     if not settings.smtp_user or not settings.smtp_password:
         logger.error("EMAIL_TRACE: SMTP_USER or SMTP_PASSWORD missing in Render Environment!")
+        logger.info(f"EMAIL_FALLBACK_LINK: {settings.frontend_url}/reset-password?token={token}")
         return False
 
     reset_url = f"{settings.frontend_url}/reset-password?token={token}"
@@ -22,12 +23,12 @@ def send_reset_password_email(email: str, token: str):
     body = f"""
     <html>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; rounded-xl: 10px;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
             <h2 style="color: #4f58ff;">NoteMind AI</h2>
             <p>Hello,</p>
             <p>We received a request to reset your password. Click the button below to choose a new one. This link will expire in 60 minutes.</p>
             <div style="text-align: center; margin: 30px 0;">
-                <a href="{reset_url}" style="background-color: #4f58ff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password</a>
+                <a href="{reset_url}" style="background-color: #4f58ff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Reset Password</a>
             </div>
             <p>If you didn't request this, you can safely ignore this email.</p>
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
@@ -44,13 +45,19 @@ def send_reset_password_email(email: str, token: str):
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'html'))
 
-        with smtplib.SMTP(settings.smtp_server, settings.smtp_port) as server:
+        # Standard Gmail/SMTP port 587 uses TLS
+        with smtplib.SMTP(settings.smtp_server, settings.smtp_port, timeout=15) as server:
             server.starttls()
             server.login(settings.smtp_user, settings.smtp_password)
             server.send_message(msg)
         
-        logger.info(f"Password reset email sent to {email}")
+        logger.info(f"EMAIL_TRACE: Success! Password reset email sent to {email}")
         return True
+    except smtplib.SMTPException as se:
+        logger.error(f"EMAIL_TRACE: SMTP Error for {email}: {str(se)}")
+        logger.info(f"EMAIL_FALLBACK_LINK: {reset_url}")
+        return False
     except Exception as e:
-        logger.error(f"Failed to send email to {email}: {str(e)}")
+        logger.error(f"EMAIL_TRACE: Unknown error for {email}: {str(e)}")
+        logger.info(f"EMAIL_FALLBACK_LINK: {reset_url}")
         return False

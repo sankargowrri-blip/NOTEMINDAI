@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
+    reset_token_expire_minutes: int = 60 # New specific expiry
 
     # Database
     postgres_url: str = "postgresql://notemind:notemind_secret@localhost:5432/notemind"
