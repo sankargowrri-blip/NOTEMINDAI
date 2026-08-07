@@ -6,7 +6,7 @@ import json
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pydantic import BaseModel, EmailStr
 
 from app.db.postgres import get_db
@@ -115,9 +115,12 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
 
 @router.post("/forgot-password")
 async def forgot_password(body: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
-    """Generate reset token and send via email."""
+    """Generate reset token and send via email with case-insensitive search."""
     logger.info(f"FORGOT_PASS_TRACE: Request for email {body.email}")
-    result = await db.execute(select(User).where(User.email == body.email))
+    # Use func.lower for case-insensitive search in PostgreSQL
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == func.lower(body.email))
+    )
     user = result.scalar_one_or_none()
     if user:
         logger.info(f"FORGOT_PASS_TRACE: User found, scheduling email...")

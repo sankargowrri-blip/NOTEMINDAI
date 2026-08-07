@@ -46,9 +46,16 @@ def send_reset_password_email(email: str, token: str):
         msg.attach(MIMEText(body, 'html'))
 
         # Standard Gmail/SMTP port 587 uses TLS
+        logger.info(f"EMAIL_TRACE: Connecting to {settings.smtp_server}:{settings.smtp_port}...")
         with smtplib.SMTP(settings.smtp_server, settings.smtp_port, timeout=15) as server:
+            server.set_debuglevel(1) # Enable SMTP debug output in logs
             server.starttls()
-            server.login(settings.smtp_user, settings.smtp_password)
+            try:
+                server.login(settings.smtp_user, settings.smtp_password)
+            except smtplib.SMTPAuthenticationError:
+                logger.error("EMAIL_TRACE: Authentication failed! Is the App Password correct?")
+                return False
+            
             server.send_message(msg)
         
         logger.info(f"EMAIL_TRACE: Success! Password reset email sent to {email}")

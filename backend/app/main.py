@@ -33,6 +33,12 @@ from app.routers import (
 async def lifespan(app: FastAPI):
     logging.info("Starting up NoteMind AI...")
     
+    # SMTP Diagnostics
+    if not settings.smtp_user or not settings.smtp_password:
+        logging.error("CRITICAL: SMTP_USER or SMTP_PASSWORD not set. Password reset will FAIL.")
+    else:
+        logging.info(f"SMTP Configured: {settings.smtp_user} via {settings.smtp_server}")
+    
     # Diagnostics: Check AI Keys
     groq_key = getattr(settings, "groq_api_key", "")
     if groq_key and groq_key.startswith("gsk_"):
