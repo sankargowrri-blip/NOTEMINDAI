@@ -1,13 +1,12 @@
-# Task List - Password Reset & Email Integration
+# Task List - Final Error Fixes & Password Reset UI
 
-- `[/]` Backend Configuration
-    - `[ ]` Add SMTP settings to `app/config.py`
-    - `[ ]` Add SMTP variables to `render.yaml`
-- `[/]` Email Service
-    - `[ ]` Create `app/services/email_service.py` with SMTP logic
-- `[/]` Auth Integration
-    - `[ ]` Connect `forgot-password` endpoint to email service
-    - `[ ]` Fix linter errors in `routers/auth.py` and `services/ai_service.py`
-- `[ ]` Push & Deploy
+- `[/]` Backend Code Cleanup
+    - `[ ]` Fix imports and references in `routers/auth.py`
+    - `[ ]` Fix imports and references in `routers/quiz.py`
+    - `[ ]` Fix imports and references in `services/ai_service.py`
+- `[/]` Frontend Password Reset
+    - `[ ]` Add `resetPassword` method to `lib/api.ts`
+    - `[ ]` Create `reset-password/page.tsx`
+- `[ ]` Final Push & Verification
     - `[ ]` Push to GitHub
-    - `[ ]` Trigger Render build
+    - `[ ]` Verify Render/Vercel builds

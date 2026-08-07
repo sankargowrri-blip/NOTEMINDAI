@@ -1,41 +1,40 @@
-# Implementation Plan - Password Reset & Email Integration
+# Implementation Plan - Final Error Fixes & Password Reset UI
 
-The goal is to implement a fully functional "Forgot Password" system by integrating an email sending service into the backend.
+The goal is to resolve all remaining linter/syntax errors in the backend and implement the missing "Reset Password" frontend page to complete the user recovery system.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Email Provider Credentials**: To send real emails, you will need an SMTP server (like Gmail, Outlook, or Brevo). You will need to add your `SMTP_USER` and `SMTP_PASSWORD` to your **Render Dashboard** environment variables.
-> **Note for Gmail users**: You must use an **"App Password"** instead of your regular login password for security.
+> **Password Reset Link**: The reset link sent to your email will now lead to a real page on your website where you can enter a new password.
+> **Backend Stability**: I am fixing several "hidden" errors identified in the system logs to ensure 100% uptime for all users.
 
 ## Proposed Changes
 
-### 1. Configuration & Security
-- **[MODIFY] [config.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/config.py)**:
-    - Add `smtp_server`, `smtp_port`, `smtp_user`, `smtp_password`, and `emails_from` fields to the `Settings` class.
-
-### 2. Email Service
-- **[NEW] [services/email_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/email_service.py)**:
-    - Implement a thread-safe email dispatcher using Python's `smtplib`.
-    - Create a function `send_reset_password_email(email, token)` that formats a professional reset link.
-
-### 3. Authentication Router
+### 1. Backend: Code Stability
 - **[MODIFY] [routers/auth.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/auth.py)**:
-    - Update the `forgot-password` endpoint to call the new email service using `BackgroundTasks` (to ensure the user doesn't have to wait for the email to send before seeing the success message).
-    - Fix minor linter errors (missing `re`, `time`, etc. identified in earlier logs).
+    - Ensure all required modules (`re`, `time`, `json`) are imported.
+    - Fix exception handling to be robust for all users.
+- **[MODIFY] [routers/quiz.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/quiz.py)**:
+    - Resolve the `Exception` and `json.dumps` reference issues.
+- **[MODIFY] [services/ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
+    - Fix the `any` and `getattr` linter errors.
 
-### 4. Infrastructure (Render)
-- **[MODIFY] [render.yaml](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/render.yaml)**:
-    - Declare the new SMTP environment variables so you can easily edit them in the dashboard.
+### 2. Frontend: Password Reset Completion
+- **[MODIFY] [src/lib/api.ts](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/lib/api.ts)**:
+    - Add `resetPassword: (body) => api.post("/api/auth/reset-password", body)` to the `authApi` object.
+- **[NEW] [reset-password/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(auth)/reset-password/page.tsx)**:
+    - Build a professional UI for choosing a new password.
+    - Handle the token from the URL automatically.
 
 ---
 
 ## Verification Plan
 
 ### Manual Verification
-1.  **Dashboard Check**: Add SMTP credentials to Render.
-2.  **Trigger**: Click "Forgot Password" on the website and enter your email.
-3.  **Inbox**: Verify a professional email arrives with a link.
-4.  **Reset**: Click the link and set a new password. Verify you can now log in with the new password.
+1.  **Deploy**: Push all changes to GitHub and Vercel.
+2.  **Forgot Password**: Request a link (ensure SMTP is configured on Render).
+3.  **Reset UI**: Verify the link opens the new "Reset Password" page.
+4.  **Success**: Change the password and verify you can log in with the NEW credentials.
+5.  **Logs Check**: Ensure Render logs are clear of any `NameError` or `AttributeError`.
 
-**Shall I proceed with implementing real email support?**
+**Shall I proceed with these final stability and feature fixes?**

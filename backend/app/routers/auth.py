@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 import logging
+import re
+import json
 
 from app.db.postgres import get_db
 from app.models.user import User, UserRole
@@ -60,9 +62,11 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         await db.refresh(user)
         logger.info(f"REG_SUCCESS: id={user.id}")
         return {"message": "Registration successful. Please verify your email.", "user_id": user.id}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"REG_CRASH: {str(e)}")
-        raise e
+        raise HTTPException(status_code=500, detail="Internal server error during registration")
 
 
 @router.post("/login")

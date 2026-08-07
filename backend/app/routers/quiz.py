@@ -57,7 +57,8 @@ async def create_quiz(
         if web_results:
             web_context = json.dumps(web_results)
     except Exception:
-        pass # Fallback to note-only if web search fails
+        # Fallback to note-only if web search fails
+        pass 
 
     questions = generate_quiz(
         note_text=text, 
@@ -101,6 +102,12 @@ async def get_quiz(
         "difficulty": quiz.difficulty.value,
         "questions": quiz.questions,
     }
+
+
+def _normalize(text: str) -> str:
+    """Helper to strip punctuation and case for robust matching."""
+    if not text: return ""
+    return re.sub(r'^[A-D][.)\s-]+', '', str(text)).strip().upper()
 
 
 def _smart_match(user_ans: str, correct_ans: str, options: dict | None = None) -> bool:

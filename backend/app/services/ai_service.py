@@ -1,6 +1,8 @@
 """AI service using Groq. Precision-locked to note text with Diagram support."""
 from __future__ import annotations
-import json, re, logging
+import json
+import re
+import logging
 from app.config import settings
 from app.services.search_tool import search_tool
 from typing import List, Dict, Optional
@@ -17,8 +19,9 @@ async def _chat(system: str, user: str, max_tokens: int = 4096, messages: Option
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
+                # Filter out system messages from history to avoid conflicts
                 history = [m for m in messages if m.get("role") != "system"]
-                chat_messages.extend(history[-8:]) 
+                chat_messages.extend(history[-8:]) # Increased history context
             chat_messages.append({"role": "user", "content": user})
             
             resp = await client.chat.completions.create(

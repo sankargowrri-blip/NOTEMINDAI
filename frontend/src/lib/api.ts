@@ -50,6 +50,8 @@ export const authApi = {
     api.post("/api/auth/login", body),
   forgotPassword: (email: string) =>
     api.post("/api/auth/forgot-password", { email }),
+  resetPassword: (body: { token: string; new_password: string }) =>
+    api.post("/api/auth/reset-password", body),
 };
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
