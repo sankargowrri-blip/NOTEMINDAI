@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 import json
 import re
 import random
+import logging
 
 from app.db.postgres import get_db
 from app.models.user import User
@@ -17,6 +18,7 @@ from app.services.quiz_service import generate_quiz
 from app.services.search_tool import search_tool
 
 router = APIRouter()
+logger = logging.getLogger("notemind")
 
 
 class QuizGenerateRequest(BaseModel):
@@ -46,19 +48,18 @@ async def create_quiz(
 
     text = note.refined_text or note.raw_ocr_text or ""
     
-    # Hybrid Context: Randomize search focus to ensure 120 unique student experiences
+    # Hybrid Context with high variety
     web_context = ""
     try:
-        foci = ["details", "examples", "exam topics", "applications", "concepts", "fundamentals"]
+        foci = ["details", "examples", "exam topics", "applications", "concepts", "case studies"]
         search_focus = random.choice(foci)
         search_query = f"{note.subject or ''} {note.title} {search_focus}".strip()
         
         web_results = await search_tool.search(search_query)
         if web_results:
             web_context = json.dumps(web_results)
-    except Exception:
-        # Fallback to note-only if web search fails
-        pass 
+    except Exception as e:
+        logger.warning(f"Web search failed for quiz variety: {e}")
 
     questions = generate_quiz(
         note_text=text, 
@@ -105,13 +106,17 @@ async def get_quiz(
 
 
 def _normalize(text: str) -> str:
-    """Helper to strip punctuation and case for robust matching."""
+    """Helper to strip punctuation, extra words, and case for robust matching."""
     if not text: return ""
-    return re.sub(r'^[A-D][.)\s-]+', '', str(text)).strip().upper()
+    # Remove common AI prefixes and punctuation
+    cleaned = re.sub(r'^[A-D][.)\s-]+', '', str(text))
+    cleaned = re.sub(r'^(the|a|an)\s+', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'[^\w\s]', '', cleaned)
+    return " ".join(cleaned.split()).strip().upper()
 
 
 def _smart_match(user_ans: str, correct_ans: str, options: dict | None = None) -> bool:
-    """Accurately analyzes correct/incorrect answers across all formats."""
+    """Accurately analyzes correct/incorrect answers with high tolerance for AI sentence drift."""
     u = str(user_ans).strip().upper()
     c = str(correct_ans).strip().upper()
     
@@ -122,13 +127,13 @@ def _smart_match(user_ans: str, correct_ans: str, options: dict | None = None) -
     clean_correct = re.sub(r'[^A-D]', '', c)[:1]
     if u == clean_correct and u in "ABCD": return True
 
-    # 3. Match user choice (letter) against option text (Full match)
+    # 3. Match user choice (letter) against option text
     if options and u in "ABCD":
         opt_text = str(options.get(u, "")).strip().upper()
-        # Clean both for fuzzy match
-        clean_opt = re.sub(r'^[A-D][.)\s-]+', '', opt_text)
-        clean_corr = re.sub(r'^[A-D][.)\s-]+', '', c)
-        if clean_opt and (clean_opt == clean_corr or clean_opt in clean_corr):
+        norm_opt = _normalize(opt_text)
+        norm_correct = _normalize(correct_ans)
+        # Match if option text is same as correct text OR if one is inside the other
+        if norm_opt and (norm_opt == norm_correct or norm_opt in norm_correct or norm_correct in norm_opt):
             return True
 
     return False

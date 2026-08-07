@@ -39,6 +39,8 @@ export default function QuizPage() {
     return String(text)
       .toLowerCase()
       .replace(/^[a-d][.)\s-]+/, "")
+      .replace(/^(the|a|an)\s+/, "")
+      .replace(/[^\w\s]/g, "")
       .replace(/\s+/g, " ")
       .trim();
   };
@@ -61,7 +63,7 @@ export default function QuizPage() {
       const normCorrect = normalize(q.answer);
       for (const [key, value] of Object.entries(q.options)) {
         const normVal = normalize(value);
-        if (normVal === normCorrect || normCorrect.includes(normVal) || normVal.includes(normCorrect)) {
+        if (normVal !== "" && (normVal === normCorrect || normCorrect.includes(normVal) || normVal.includes(normCorrect))) {
           return key;
         }
       }
@@ -107,7 +109,7 @@ export default function QuizPage() {
         "Options": q.options ? Object.entries(q.options).map(([k, v]) => `${k}: ${v}`).join(" | ") : "N/A",
         "Your Answer": uk || "Skipped",
         "Correct Answer": ck || q.answer,
-        "Result": uk === ck ? "CORRECT" : "WRONG",
+        "Result": (uk && ck && uk === ck) ? "CORRECT" : "WRONG",
         "Explanation": q.explanation || ""
       };
     });
@@ -138,7 +140,7 @@ export default function QuizPage() {
         q.question,
         uk || "-",
         ck || q.answer,
-        uk === ck ? "CORRECT" : "WRONG"
+        (uk && ck && uk === ck) ? "CORRECT" : "WRONG"
       ];
     });
 
@@ -263,7 +265,7 @@ export default function QuizPage() {
         {quiz.questions.map((q, i) => {
           const correctKey = getCorrectKey(q);
           const userKey = answers[i];
-          const isCorrect = userKey === correctKey;
+          const isCorrect = userKey && correctKey && userKey === correctKey;
 
           return (
             <div key={i} className={clsx(
