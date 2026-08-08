@@ -9,13 +9,13 @@ from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-def truncate_text(text: str, max_chars: int = 8000) -> str:
-    """Stay within Groq TPM limits by limiting context size."""
+def truncate_text(text: str, max_chars: int = 6000) -> str:
+    """Stay within Groq TPM limits (6000 tokens) by limiting context size."""
     if not text: return ""
     return text[:max_chars] + "..." if len(text) > max_chars else text
 
-async def _chat(system: str, user: str, max_tokens: int = 4096, messages: Optional[List[Dict]] = None) -> str:
-    """Call Groq using Async client for better performance."""
+async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Optional[List[Dict]] = None) -> str:
+    """Call Groq using Async client with optimized token usage."""
     groq_key = settings.groq_api_key
     if groq_key and groq_key.startswith("gsk_"):
         try:
@@ -24,8 +24,9 @@ async def _chat(system: str, user: str, max_tokens: int = 4096, messages: Option
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
+                # Filter out system messages and truncate history to save tokens
                 history = [m for m in messages if m.get("role") != "system"]
-                chat_messages.extend(history[-8:]) 
+                chat_messages.extend(history[-4:]) # Last 4 messages only
             chat_messages.append({"role": "user", "content": user})
             
             resp = await client.chat.completions.create(
@@ -42,7 +43,7 @@ async def _chat(system: str, user: str, max_tokens: int = 4096, messages: Option
 
 async def rag_chat(user_id: str, question: str, note_text: str = "", history: List[Dict] = None) -> dict:
     """
-    Enhanced RAG Chat with Hybrid Search and Diagram Support.
+    Enhanced RAG Chat with strict token management and Diagram Support.
     """
     
     is_web = False
@@ -52,8 +53,9 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
         "You are NoteMind AI, an expert study assistant. Your goal is to clear any doubt the student has. "
         "1. GROUNDING: Use the provided [NOTE TEXT] first. If information is missing, use your internal knowledge and [WEB SEARCH]. "
         "2. STRUCTURE: Provide step-by-step explanations, clear definitions, and real-world examples. "
-        "3. DIAGRAMS: If a diagram helps explain, generate Mermaid.js syntax inside triple backticks like this: ```mermaid ... ```. "
-        "IMPORTANT: Always quote node labels like this: id[\"Label text\"] to avoid syntax errors with special characters. "
+        "3. DIAGRAMS: If a student asks for a diagram, or if a flowchart/mindmap would help explain a complex process, "
+        "generate it using Mermaid.js syntax inside triple backticks like this: ```mermaid ... ```. "
+        "CRITICAL: Always wrap node labels in double quotes, e.g., id[\"My Step (info)\"] or id(\"Process name\"). This prevents syntax errors. "
         "4. CODING: Provide sample code snippets if relevant. "
         "5. TONE: Prefix answers with [Notes] or [Web]."
     )
@@ -70,6 +72,7 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     if is_web:
         should_search = True
     else:
+        # Check for keywords that trigger web search
         keywords = ["latest", "recent", "who is", "what is the current", "news", "today"]
         if any(word in question.lower() for word in keywords):
             should_search = True
@@ -114,12 +117,12 @@ async def extract_keywords(text: str) -> dict:
 
 async def translate_note(text: str, target_language: str) -> str:
     system = f"Translate to {target_language}."
-    safe_text = truncate_text(text, max_chars=4000) # Smaller for translation
+    safe_text = truncate_text(text, max_chars=3000) 
     return await _chat(system, safe_text)
 
 async def generate_big_questions(text: str) -> List[Dict]:
     system = (
-        "Generate 3 university-style long questions based on the notes. "
+        "Generate 3 university-style long questions (10-16 marks) based on the notes. "
         "Return as JSON list: [{\"question\": \"...\", \"marks\": 15, \"outline\": [\"...\", \"...\"]}]"
     )
     safe_text = truncate_text(text)
