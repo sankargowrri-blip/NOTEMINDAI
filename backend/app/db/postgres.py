@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from app.config import settings
@@ -42,18 +43,29 @@ class Base(DeclarativeBase):
     pass
 
 async def init_db():
-    """Create all tables on startup."""
+    """Create all tables on startup and run migrations."""
     logger.info("DB_LOG: Starting database initialization...")
     try:
         async with engine.begin() as conn:
+            # 1. Run migrations first
+            if not _use_sqlite:
+                logger.info("DB_LOG: Checking for missing columns (Postgres)...")
+                try:
+                    await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question VARCHAR(255)"))
+                    await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer VARCHAR(255)"))
+                    logger.info("DB_LOG: Security columns verified/added.")
+                except Exception as me:
+                    logger.warning(f"DB_LOG: Migration notice (might be minor): {me}")
+
+            # 2. Create tables via models
             logger.info("DB_LOG: Connection established, importing models...")
             from app.models import user, note, quiz as quiz_model, flashcard, analytics as analytics_model  # noqa
             logger.info("DB_LOG: Creating tables if they don't exist...")
             await conn.run_sync(Base.metadata.create_all)
+        
         logger.info("DB_LOG: Database tables verified successfully.")
     except Exception as e:
         logger.error(f"DB_LOG: Database init failed: {str(e)}")
-        # Don't raise here, allow the app to start (it will fail on actual queries with better errors)
 
 async def get_db():
     async with AsyncSessionLocal() as session:
