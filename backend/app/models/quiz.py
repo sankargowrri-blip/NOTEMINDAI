@@ -26,7 +26,7 @@ class Quiz(Base):
     __tablename__ = "quizzes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    note_id: Mapped[int] = mapped_column(ForeignKey("notes.id"), nullable=False, index=True)
+    note_id: Mapped[int] = mapped_column(ForeignKey("notes.id", ondelete="CASCADE"), nullable=False, index=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="Quiz")
     difficulty: Mapped[Difficulty] = mapped_column(Enum(Difficulty), default=Difficulty.medium)
@@ -38,9 +38,9 @@ class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    quiz_id: Mapped[int] = mapped_column(ForeignKey("quizzes.id"), nullable=False)
+    quiz_id: Mapped[int] = mapped_column(ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    note_id: Mapped[int] = mapped_column(ForeignKey("notes.id"), nullable=False)
+    note_id: Mapped[int] = mapped_column(ForeignKey("notes.id", ondelete="CASCADE"), nullable=False)
     score: Mapped[float] = mapped_column(Float, default=0.0)
     total: Mapped[int] = mapped_column(Integer, default=0)
     answers: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

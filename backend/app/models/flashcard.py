@@ -15,7 +15,7 @@ class FlashcardSet(Base):
     __tablename__ = "flashcard_sets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    note_id: Mapped[int] = mapped_column(ForeignKey("notes.id"), nullable=False, index=True)
+    note_id: Mapped[int] = mapped_column(ForeignKey("notes.id", ondelete="CASCADE"), nullable=False, index=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="Flashcard Set")
     card_type: Mapped[FlashcardType] = mapped_column(Enum(FlashcardType), default=FlashcardType.standard)
@@ -27,7 +27,7 @@ class FlashcardRecall(Base):
     __tablename__ = "flashcard_recalls"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    set_id: Mapped[int] = mapped_column(ForeignKey("flashcard_sets.id"), nullable=False)
+    set_id: Mapped[int] = mapped_column(ForeignKey("flashcard_sets.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     card_index: Mapped[int] = mapped_column(Integer, nullable=False)
     known: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -1,11 +1,13 @@
-# Task List - AI Stability & Diagram Accuracy Fix
+# Task List - Final Stability & Feature Fixes
 
-- `[/]` Backend: Token & Prompt Optimization
-    - `[ ]` Implement character limits in `ai_service.py`
-    - `[ ]` Update Mermaid prompt guidelines
-    - `[ ]` Sync truncation in `quiz_service.py`
-- `[/]` Frontend: Robust Mermaid Component
-    - `[ ]` Implement label auto-quoting in `Mermaid.tsx`
+- `[/]` Fix Flashcard Generation
+    - `[ ]` Update `quiz_service.py` to accept `card_type`
+- `[/]` Fix Note Deletion (Self-Healing)
+    - `[ ]` Update `models/quiz.py` with CASCADE
+    - `[ ]` Update `models/flashcard.py` with CASCADE
+    - `[ ]` Update `db/postgres.py` with auto-repair migrations
+- `[/]` Fix Diagram Syntax
+    - `[ ]` Refine Mermaid prompt in `ai_service.py`
 - `[ ]` Deploy & Verify
     - `[ ]` Push to GitHub
-    - `[ ]` Test rate limits and diagram rendering
+    - `[ ]` Trigger Render build
