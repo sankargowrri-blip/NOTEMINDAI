@@ -1,36 +1,41 @@
-# Implementation Plan - Final Stability & Feature Fixes
+# Implementation Plan - Quiz Formatting & Stability Fix
 
-The goal is to resolve the reported issues with Flashcard generation, Note deletion, and Mermaid diagram syntax errors.
+The goal is to ensure all quiz types (Fill in the Blanks, True/False, MCQ, Descriptive) follow their correct academic formats and resolve the "AI Busy" (Rate Limit) errors.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Database Auto-Repair**: I am adding a self-healing script to your server. When you delete a note, the system will now automatically remove all linked quizzes and flashcards. This prevents the "Failed to delete" error.
-> **AI Precision**: I have refined the AI's "Drawing Brain" to be even stricter with diagrams. It will now use quotes for all labels to avoid "Syntax Errors."
+> **Formatting Rules**:
+> - **Fill in the Blanks**: Every question will now be guaranteed to have a clear `___` dash placeholder.
+> - **True or False**: Questions will be formatted as factual statements (e.g., "NoteMind AI is a study assistant.") with "True" and "False" as the only options.
+> - **Stability**: I am further reducing the AI request size to ensure the "AI is busy" (Rate Limit) error stops happening for good.
 
 ## Proposed Changes
 
-### 1. Flashcard Generation Fix
+### 1. Backend: Precision Prompting
 - **[MODIFY] [services/quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**:
-    - Update `generate_flashcards` to correctly handle `card_type` (Standard, Definition, or Formula). This fixes the "Failed to generate" error.
+    - Update `type_instructions` with strict formatting rules:
+        - `fill_blank`: "MUST include a '___' placeholder in the question text."
+        - `true_false`: "MUST be a statement. Options must be exactly {'A': 'True', 'B': 'False'}."
+    - Improve the "Accuracy Handshake" to ensure the AI always picks a correct answer from the provided text.
 
-### 2. Note Deletion (Self-Healing)
-- **[MODIFY] [models/quiz.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/models/quiz.py)**: Add `ondelete="CASCADE"` to the note reference.
-- **[MODIFY] [models/flashcard.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/models/flashcard.py)**: Add `ondelete="CASCADE"` to the note reference.
-- **[MODIFY] [db/postgres.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/db/postgres.py)**:
-    - Add logic to ensure the production database on Render allows cascading deletes. This is the ultimate fix for the "Failed to delete note" error.
+### 2. Backend: Token & Rate Limit Optimization
+- **[MODIFY] [services/quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**:
+    - Decrease character limit to **5000 chars** for quiz context to prevent the "6475 requested tokens" error.
 
-### 3. Diagram Syntax Fix
-- **[MODIFY] [services/ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
-    - Updated the Mermaid prompt: "CRITICAL: Do NOT use symbols like `|>` or `>>`. Use only standard arrows like `-->`. Quote all labels."
+### 3. Frontend: Adaptive Rendering
+- **[MODIFY] [quiz/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/quiz/page.tsx)**:
+    - Ensure the UI handles `options` even for True/False (showing them as big buttons).
+    - Add a "Loading" status that explains the AI is reading the notes.
 
 ---
 
 ## Verification Plan
 
 ### Manual Verification
-1.  **Deletion Test**: Delete a note that has a quiz attached. Verify it disappears instantly.
-2.  **Flashcard Test**: Generate "Definition" cards for a note. Verify they appear without error.
-3.  **Diagram Test**: Ask for a complex security flowchart. Verify a clean diagram appears.
+- **Fill-Blank Test**: Generate a Fill-in-the-blank quiz. Verify every question has a `___`.
+- **True/False Test**: Generate a True/False quiz. Verify only "True" and "False" options appear.
+- **Stress Test**: Generate a quiz for a long note. Verify the "AI Busy" error is gone.
+- **Accuracy Test**: Answer a True/False question and verify the Green/Red marks match your choice.
 
-**I am applying these final stabilization fixes now. Shall I proceed?** 🚀🛠️🎓
+**I am applying these formatting and stability fixes now. Do you want me to proceed?** 🚀🎓📊

@@ -79,8 +79,9 @@ export default function QuizPage() {
       setQuiz(res.data);
       setAnswers({});
       setStep("quiz");
-    } catch (e: unknown) {
-      toast.error((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to generate quiz");
+    } catch (e: any) {
+        const msg = e.response?.data?.detail || "AI is currently busy. Please try with fewer questions or a shorter note.";
+        toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -177,13 +178,13 @@ export default function QuizPage() {
           <div>
             <label className="label font-semibold">Question Type</label>
             <select value={qType} onChange={(e) => setQType(e.target.value)} className="input capitalize">
-              {QUESTION_TYPES.map((t) => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
+              {QUESTION_TYPES.map((t) => <option key={t} value={t}>{t.replace("_", " ").toUpperCase()}</option>)}
             </select>
           </div>
           <div>
             <label className="label font-semibold">Difficulty</label>
             <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="input capitalize">
-              {DIFFICULTIES.map((d) => <option key={d} value={d}>{d}</option>)}
+              {DIFFICULTIES.map((d) => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
             </select>
           </div>
         </div>

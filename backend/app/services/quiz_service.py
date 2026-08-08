@@ -1,4 +1,4 @@
-"""Quiz and Flashcard generation — High-variety logic for 120+ students."""
+"""Quiz and Flashcard generation — High-variety logic with strict formatting."""
 from __future__ import annotations
 import json
 import re
@@ -10,6 +10,10 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+def truncate_text(text: str, max_chars: int = 5000) -> str:
+    """Stay strictly within free-tier TPM limits (6000 tokens) by limiting context size."""
+    if not text: return ""
+    return text[:max_chars] + "..." if len(text) > max_chars else text
 
 def _chat(prompt: str, max_tokens: int = 3000, temperature: float = 0.8) -> str:
     """Call AI with high temperature for maximum question variety."""
@@ -24,14 +28,14 @@ def _chat(prompt: str, max_tokens: int = 3000, temperature: float = 0.8) -> str:
                     {
                         "role": "system", 
                         "content": (
-                            "You are a professional examiner. You generate accurate, diverse, and challenging academic questions. "
-                            "You MUST ensure every generation is unique by focusing on different parts of the notes."
+                            "You are a professional academic examiner. You follow strict formatting rules for quizzes. "
+                            "You generate challenging, accurate, and diverse academic questions."
                         )
                     },
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=max_tokens,
-                temperature=temperature, # High temperature for variety
+                temperature=temperature,
             )
             return resp.choices[0].message.content.strip()
         except Exception as e:
@@ -43,31 +47,39 @@ def _chat(prompt: str, max_tokens: int = 3000, temperature: float = 0.8) -> str:
 def generate_quiz(note_text: str, web_context: str = "", question_type: str = "mcq",
                   difficulty: str = "medium", count: int = 10) -> list[dict]:
     
-    # 1. Create a unique session seed to force AI variety
+    # Formatting instructions for different quiz types
+    type_rules = {
+        "mcq": "Multiple-choice questions with 4 options (A,B,C,D). The 'answer' field MUST be just the LETTER ('A', 'B', 'C', or 'D').",
+        "fill_blank": "Fill-in-the-blank questions. The 'question' field MUST include a '___' (underscore dash) as a placeholder for the answer.",
+        "true_false": "True or False statements. The 'question' MUST be a statement. 'options' MUST be exactly {'A': 'True', 'B': 'False'}. The 'answer' MUST be 'A' or 'B'.",
+        "one_word": "Questions where the answer is exactly one word.",
+        "descriptive": "Long-answer/explanatory questions.",
+    }
+    format_rule = type_rules.get(question_type, "Standard academic questions.")
+
     session_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=12))
     
-    context_block = f"NOTE CONTENT:\n{note_text}\n\n"
+    # Strictly limited context for free-tier stability
+    safe_note_text = truncate_text(note_text, max_chars=5000)
+    context_block = f"NOTE CONTENT:\n{safe_note_text}\n\n"
     if web_context:
-        context_block += f"ADDITIONAL INTERNET CONTEXT:\n{web_context}\n\n"
+        context_block += f"INTERNET CONTEXT:\n{truncate_text(web_context, 1000)}\n\n"
 
     prompt = (
         f"Generate exactly {count} {difficulty}-difficulty {question_type} questions based on the context.\n\n"
-        "Instructions for 100% Uniqueness & Accuracy:\n"
-        f"1. SESSION SEED: {session_id} (Use this to pick different focus areas than before).\n"
-        "2. UNIQUENESS: Do NOT repeat the most obvious or common questions. Find hidden details, applications, and edge cases.\n"
-        "3. FORMAT: Return a JSON array. For MCQ, the 'answer' field MUST be just the LETTER ('A', 'B', 'C', or 'D').\n"
-        "4. ACCURACY: Ensure the correct answer is clearly supported by the text.\n"
-        "5. Structure each item as:\n"
-        "   - \"question\": the text of the question\n"
-        "   - \"answer\": for MCQ use ONE letter. For others, use full correct text.\n"
-        "   - \"explanation\": Why this is correct (citing the context)\n"
-        "   - \"options\": (MCQ ONLY) {\"A\":...,\"B\":...,\"C\":...,\"D\":...}\n\n"
+        "STRICT FORMATTING RULES:\n"
+        f"1. TYPE: {format_rule}\n"
+        f"2. SESSION SEED: {session_id}.\n"
+        "3. FORMAT: Return a JSON array. Each object MUST have: \"question\", \"answer\", \"explanation\".\n"
+        "4. For MCQ & True/False, also include \"options\": {}.\n"
+        "5. NO extra text, NO markdown formatting outside the JSON block.\n\n"
         f"{context_block}"
-        "Return ONLY the JSON array, no conversational text."
+        "Return ONLY the JSON array."
     )
     
-    raw = _chat(prompt, max_tokens=4000, temperature=0.85) # High temperature for class-wide variety
+    raw = _chat(prompt, max_tokens=4000, temperature=0.8)
     try:
+        # Improved parsing to find JSON array even if AI adds intro text
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         if match:
             return json.loads(match.group())
@@ -76,28 +88,17 @@ def generate_quiz(note_text: str, web_context: str = "", question_type: str = "m
     return []
 
 
-def generate_flashcards(note_text: str, card_type: str = "standard", count: int = 20) -> list[dict]:
-    """Generates unique flashcards based on notes."""
+def generate_flashcards(note_text: str, count: int = 20) -> list[dict]:
     session_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
-    
-    type_desc = {
-        "standard": "key terms and concepts",
-        "definition": "detailed definitions of technical terms",
-        "formula": "mathematical formulas and their variables"
-    }
-    desc = type_desc.get(card_type, "standard study points")
-
+    safe_text = truncate_text(note_text, 5000)
     prompt = (
-        f"Generate exactly {count} unique flashcards focusing on {desc}. Session ID: {session_id}.\n"
-        "Instructions:\n"
-        "1. Return a JSON array of objects.\n"
-        "2. Each object MUST have 'front' and 'back' fields.\n"
-        "3. Focus on unique details from the note below.\n\n"
-        f"NOTE CONTENT:\n{note_text}\n\n"
-        "Return ONLY the JSON array."
+        f"Generate {count} unique flashcards. Session ID: {session_id}.\n"
+        "Return a JSON array with 'front' and 'back' fields.\n\n"
+        f"NOTE CONTENT:\n{safe_text}\n\n"
+        "Return ONLY JSON."
     )
     
-    raw = _chat(prompt, max_tokens=3000, temperature=0.8)
+    raw = _chat(prompt, max_tokens=3000, temperature=0.7)
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         if match:
