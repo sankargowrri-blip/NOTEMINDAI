@@ -230,7 +230,7 @@ async def flowchart(
     if not text:
         raise HTTPException(400, detail="Note has no text content")
     result = await ai_service.generate_flowchart(text)
-    if not result.get("nodes"):
+    if not result.get("code"):
         raise HTTPException(422, detail="Could not generate a flowchart. The note may not describe a sequential process.")
     return result
 

@@ -2,9 +2,8 @@
 from __future__ import annotations
 import logging
 import re
-import json
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from pydantic import BaseModel, EmailStr
@@ -18,8 +17,6 @@ from app.services.auth_service import (
     create_refresh_token, 
     decode_token
 )
-from app.services.email_service import send_reset_password_email
-from app.config import settings
 
 router = APIRouter()
 logger = logging.getLogger("notemind")
