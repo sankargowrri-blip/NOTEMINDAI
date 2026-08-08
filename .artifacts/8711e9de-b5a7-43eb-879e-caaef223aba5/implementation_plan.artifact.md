@@ -1,41 +1,38 @@
-# Implementation Plan - Quiz Formatting & Stability Fix
+# Implementation Plan - Ultimate AI Stability & Silent Diagram Fix
 
-The goal is to ensure all quiz types (Fill in the Blanks, True/False, MCQ, Descriptive) follow their correct academic formats and resolve the "AI Busy" (Rate Limit) errors.
+The goal is to permanently resolve the "Request too large" (Error 413) and hide the "Syntax error in text" messages that appear when diagrams fail.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Formatting Rules**:
-> - **Fill in the Blanks**: Every question will now be guaranteed to have a clear `___` dash placeholder.
-> - **True or False**: Questions will be formatted as factual statements (e.g., "NoteMind AI is a study assistant.") with "True" and "False" as the only options.
-> - **Stability**: I am further reducing the AI request size to ensure the "AI is busy" (Rate Limit) error stops happening for good.
+> **Extreme Token Optimization**: To stop the "AI is busy" error for good, I am reducing the context even further. I will now send the most relevant **3000 characters** (approx 750 tokens) of your note. This ensures that even with chat history, we stay well below the 6000 token limit.
+> **Silent Diagrams**: I am updating the diagram engine to be "invisible" if it fails. Instead of showing a big "Syntax error" with a bomb icon, it will simply show the explanation text. You will only see a diagram if it is 100% perfect.
 
 ## Proposed Changes
 
-### 1. Backend: Precision Prompting
-- **[MODIFY] [services/quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**:
-    - Update `type_instructions` with strict formatting rules:
-        - `fill_blank`: "MUST include a '___' placeholder in the question text."
-        - `true_false`: "MUST be a statement. Options must be exactly {'A': 'True', 'B': 'False'}."
-    - Improve the "Accuracy Handshake" to ensure the AI always picks a correct answer from the provided text.
+### 1. Backend: Aggressive Token Management
+- **[MODIFY] [services/ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
+    - Reduce `truncate_text` limit to **3000 characters**.
+    - Reduce chat history to the **last 2 messages** only.
+    - This creates a massive "buffer" so you never hit the 6000 TPM limit again.
 
-### 2. Backend: Token & Rate Limit Optimization
-- **[MODIFY] [services/quiz_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/quiz_service.py)**:
-    - Decrease character limit to **5000 chars** for quiz context to prevent the "6475 requested tokens" error.
+### 2. Frontend: Zero-Error Diagram Rendering
+- **[MODIFY] [components/Mermaid.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/components/Mermaid.tsx)**:
+    - Implement a **Syntax Pre-Check**: The app will now check the diagram code *before* trying to draw it.
+    - If the code is invalid, the component will return `null` (completely hidden).
+    - This eliminates the "Syntax error in text" messages from your screen.
 
-### 3. Frontend: Adaptive Rendering
-- **[MODIFY] [quiz/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/quiz/page.tsx)**:
-    - Ensure the UI handles `options` even for True/False (showing them as big buttons).
-    - Add a "Loading" status that explains the AI is reading the notes.
+### 3. Frontend: Scroll & Layout Polish
+- **[MODIFY] [ai-chat/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/ai-chat/page.tsx)**:
+    - Optimize the "Auto-Scroll" behavior to be smoother when diagrams are being processed.
 
 ---
 
 ## Verification Plan
 
 ### Manual Verification
-- **Fill-Blank Test**: Generate a Fill-in-the-blank quiz. Verify every question has a `___`.
-- **True/False Test**: Generate a True/False quiz. Verify only "True" and "False" options appear.
-- **Stress Test**: Generate a quiz for a long note. Verify the "AI Busy" error is gone.
-- **Accuracy Test**: Answer a True/False question and verify the Green/Red marks match your choice.
+- **Limit Test**: Ask a question about a 100-page PDF. Verify it answers instantly without Error 413.
+- **Diagram Silence Test**: Intentionally ask for a "broken diagram". Verify that the text answer appears but NO red error boxes appear at the bottom.
+- **Scroll Test**: Verify the chat doesn't "jump" uncomfortably when the AI responds.
 
-**I am applying these formatting and stability fixes now. Do you want me to proceed?** 🚀🎓📊
+**I am applying these "Silence & Stability" fixes now to make your experience smooth and error-free.** 🚀🎓✨

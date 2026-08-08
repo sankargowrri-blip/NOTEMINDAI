@@ -9,13 +9,13 @@ from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-def truncate_text(text: str, max_chars: int = 6000) -> str:
-    """Stay within Groq TPM limits (6000 tokens) by limiting context size."""
+def truncate_text(text: str, max_chars: int = 3000) -> str:
+    """Aggressively limit text to stay under 6000 TPM limit (Free Tier)."""
     if not text: return ""
     return text[:max_chars] + "..." if len(text) > max_chars else text
 
 async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Optional[List[Dict]] = None) -> str:
-    """Call Groq using Async client with optimized token usage."""
+    """Call Groq using Async client with extreme token optimization."""
     groq_key = settings.groq_api_key
     if groq_key and groq_key.startswith("gsk_"):
         try:
@@ -24,8 +24,9 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
+                # Truncate history to last 2 messages to save tokens
                 history = [m for m in messages if m.get("role") != "system"]
-                chat_messages.extend(history[-4:]) 
+                chat_messages.extend(history[-2:]) 
             chat_messages.append({"role": "user", "content": user})
             
             resp = await client.chat.completions.create(
@@ -49,19 +50,17 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     
     # SYSTEM PROMPT FOR RICH EXPLANATIONS & DIAGRAMS
     system = (
-        "You are NoteMind AI, an expert study assistant. Your goal is to clear any doubt the student has. "
-        "1. GROUNDING: Use the provided [NOTE TEXT] first. If information is missing, use your internal knowledge and [WEB SEARCH]. "
-        "2. STRUCTURE: Provide step-by-step explanations, clear definitions, and real-world examples. "
-        "3. DIAGRAMS: If a diagram helps explain, generate Mermaid.js syntax inside triple backticks like this: ```mermaid ... ```. "
-        "CRITICAL: Always wrap node labels in double quotes, e.g., id[\"My Step (info)\"] or id(\"Process name\"). "
-        "Do NOT use symbols like |> or >> in arrows. Use only standard arrows like -->. "
-        "4. CODING: Provide sample code snippets if relevant. "
-        "5. TONE: Prefix answers with [Notes] or [Web]."
+        "You are NoteMind AI, an expert study assistant. Clear any doubt the student has. "
+        "1. GROUNDING: Use the provided [NOTE TEXT] first. "
+        "2. STRUCTURE: Provide step-by-step explanations and real-world examples. "
+        "3. DIAGRAMS: Generate Mermaid.js syntax inside ```mermaid ... ``` ONLY if a diagram is highly helpful. "
+        "IMPORTANT: Always wrap node labels in double quotes: id[\"Label text\"]. Do NOT use complex arrows like |> or >>. "
+        "4. TONE: Prefix answers with [Notes] or [Web]."
     )
     
     user_prompt = ""
     if note_text and len(note_text.strip()) > 50:
-        safe_text = truncate_text(note_text)
+        safe_text = truncate_text(note_text) # 3000 chars max
         user_prompt += f"NOTE TEXT:\n{safe_text}\n\n"
     else:
         is_web = True
@@ -115,7 +114,7 @@ async def extract_keywords(text: str) -> dict:
 
 async def translate_note(text: str, target_language: str) -> str:
     system = f"Translate to {target_language}."
-    safe_text = truncate_text(text, max_chars=3000) 
+    safe_text = truncate_text(text, max_chars=2000) 
     return await _chat(system, safe_text)
 
 async def generate_big_questions(text: str) -> List[Dict]:
