@@ -1,4 +1,4 @@
-"""Authentication router: register, login, refresh, Google OAuth, forgot password."""
+"""Authentication router: register, login, refresh, local password reset via security questions."""
 from __future__ import annotations
 import logging
 import re
@@ -30,6 +30,8 @@ class RegisterRequest(BaseModel):
     display_name: str
     password: str
     role: UserRole = UserRole.student
+    security_question: str
+    security_answer: str
 
 
 class LoginRequest(BaseModel):
@@ -50,6 +52,12 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+class LocalResetRequest(BaseModel):
+    email: EmailStr
+    security_answer: str
+    new_password: str
+
+
 @router.post("/register", status_code=201)
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     try:
@@ -58,18 +66,21 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         if result.scalar_one_or_none():
             logger.warning(f"REG_FAILED: Email {body.email} already exists")
             raise HTTPException(status_code=400, detail="Email already registered")
+        
         user = User(
             email=body.email,
             display_name=body.display_name,
             hashed_password=hash_password(body.password),
             role=body.role,
+            security_question=body.security_question,
+            security_answer=body.security_answer.strip().lower(), # Store normalized for comparison
             is_email_verified=False,
         )
         db.add(user)
         await db.commit()
         await db.refresh(user)
         logger.info(f"REG_SUCCESS: id={user.id}")
-        return {"message": "Registration successful. Please verify your email.", "user_id": user.id}
+        return {"message": "Registration successful. You can now sign in.", "user_id": user.id}
     except HTTPException:
         raise
     except Exception as e:
@@ -114,29 +125,45 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
 
 
 @router.post("/forgot-password")
-async def forgot_password(body: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
-    """Generate reset token and send via email with case-insensitive search."""
-    logger.info(f"FORGOT_PASS_TRACE: Request for email {body.email}")
-    # Use func.lower for case-insensitive search in PostgreSQL
+async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Fetch the security question for a given email."""
     result = await db.execute(
         select(User).where(func.lower(User.email) == func.lower(body.email))
     )
     user = result.scalar_one_or_none()
-    if user:
-        logger.info(f"FORGOT_PASS_TRACE: User found, scheduling email...")
-        # Create token with 60-minute expiry
-        expires = timedelta(minutes=settings.reset_token_expire_minutes)
-        reset_token = create_access_token({"sub": str(user.id), "purpose": "reset"}, expires_delta=expires)
-        background_tasks.add_task(send_reset_password_email, user.email, reset_token)
-    else:
-        logger.warning(f"FORGOT_PASS_TRACE: No user found with email {body.email}")
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email.")
     
-    # Always return 200 for security
-    return {"message": "If that email is registered, a reset link has been sent."}
+    if not user.security_question:
+        raise HTTPException(
+            status_code=400, 
+            detail="This account does not have a security question set. Please contact support."
+        )
+        
+    return {"security_question": user.security_question}
+
+
+@router.post("/local-reset-password")
+async def local_reset_password(body: LocalResetRequest, db: AsyncSession = Depends(get_db)):
+    """Verify security answer and reset password immediately."""
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == func.lower(body.email))
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.security_answer != body.security_answer.strip().lower():
+        raise HTTPException(status_code=400, detail="Incorrect security answer.")
+    
+    user.hashed_password = hash_password(body.new_password)
+    await db.commit()
+    return {"message": "Password reset successful. You can now log in."}
 
 
 @router.post("/reset-password")
 async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    # Legacy endpoint for email-based reset (optional)
     from jose import JWTError
     try:
         payload = decode_token(body.token)

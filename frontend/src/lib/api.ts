@@ -1,7 +1,6 @@
 import axios from "axios";
 
 // Absolute URL for production to ensure 100% connectivity.
-// No more "relative path" confusion.
 const API_BASE = "https://notemind-api-tmsd.onrender.com";
 
 export const api = axios.create({
@@ -44,12 +43,14 @@ api.interceptors.response.use(
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
-  register: (body: { email: string; display_name: string; password: string; role?: string }) =>
+  register: (body: any) =>
     api.post("/api/auth/register", body),
   login: (body: { email: string; password: string }) =>
     api.post("/api/auth/login", body),
   forgotPassword: (email: string) =>
     api.post("/api/auth/forgot-password", { email }),
+  localResetPassword: (body: any) =>
+    api.post("/api/auth/local-reset-password", body),
   resetPassword: (body: { token: string; new_password: string }) =>
     api.post("/api/auth/reset-password", body),
 };

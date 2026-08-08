@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/backend" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/backend/venv/Lib/site-packages" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/backend/venv/Lib/site-packages/langchain_classic/tools" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/venv/Lib/site-packages/docx" isTestSource="false" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
