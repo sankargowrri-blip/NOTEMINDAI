@@ -9,6 +9,11 @@ from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+def truncate_text(text: str, max_chars: int = 8000) -> str:
+    """Stay within Groq TPM limits by limiting context size."""
+    if not text: return ""
+    return text[:max_chars] + "..." if len(text) > max_chars else text
+
 async def _chat(system: str, user: str, max_tokens: int = 4096, messages: Optional[List[Dict]] = None) -> str:
     """Call Groq using Async client for better performance."""
     groq_key = settings.groq_api_key
@@ -19,9 +24,8 @@ async def _chat(system: str, user: str, max_tokens: int = 4096, messages: Option
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
-                # Filter out system messages from history to avoid conflicts
                 history = [m for m in messages if m.get("role") != "system"]
-                chat_messages.extend(history[-8:]) # Increased history context
+                chat_messages.extend(history[-8:]) 
             chat_messages.append({"role": "user", "content": user})
             
             resp = await client.chat.completions.create(
@@ -48,23 +52,20 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
         "You are NoteMind AI, an expert study assistant. Your goal is to clear any doubt the student has. "
         "1. GROUNDING: Use the provided [NOTE TEXT] first. If information is missing, use your internal knowledge and [WEB SEARCH]. "
         "2. STRUCTURE: Provide step-by-step explanations, clear definitions, and real-world examples. "
-        "3. DIAGRAMS: If a student asks for a diagram, or if a flowchart/mindmap would help explain a complex process, "
-        "generate it using Mermaid.js syntax inside triple backticks like this: ```mermaid ... ```. "
-        "CRITICAL: The code inside triple backticks must contain ONLY Mermaid syntax. Do NOT include 'Diagram:', titles, or comments inside the code block. "
-        "Start directly with 'graph TD', 'sequenceDiagram', etc. "
-        "4. CODING: If the topic is programming, provide sample code snippets. "
-        "5. TONE: Always prefix answers with [Notes] if from study material, or [Web] if from external resources."
+        "3. DIAGRAMS: If a diagram helps explain, generate Mermaid.js syntax inside triple backticks like this: ```mermaid ... ```. "
+        "IMPORTANT: Always quote node labels like this: id[\"Label text\"] to avoid syntax errors with special characters. "
+        "4. CODING: Provide sample code snippets if relevant. "
+        "5. TONE: Prefix answers with [Notes] or [Web]."
     )
     
     user_prompt = ""
     if note_text and len(note_text.strip()) > 50:
-        # Truncate note text to stay within Groq TPM limits (~3000 tokens / 12k chars)
-        safe_note_text = note_text[:12000] if len(note_text) > 12000 else note_text
-        user_prompt += f"NOTE TEXT:\n{safe_note_text}\n\n"
+        safe_text = truncate_text(note_text)
+        user_prompt += f"NOTE TEXT:\n{safe_text}\n\n"
     else:
         is_web = True
     
-    # Internet Search Fallback for complex questions or missing notes
+    # Internet Search Fallback
     should_search = False
     if is_web:
         should_search = True
@@ -90,18 +91,21 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     }
 
 async def generate_summary(text: str, mode: str = "bullet") -> str:
-    system = "You are a professional note summarizer. Use ONLY the text provided. No external info."
-    prompt = f"Summarize this text as {mode}: \n\n{text}"
+    system = "You are a professional note summarizer."
+    safe_text = truncate_text(text)
+    prompt = f"Summarize this text as {mode}: \n\n{safe_text}"
     return await _chat(system, prompt)
 
 async def simplify_note(text: str, level: str = "school") -> str:
-    system = f"Explain this text like I am a {level} student. Use simple language and analogies."
-    prompt = f"Text to simplify:\n\n{text}"
+    system = f"Explain this text like I am a {level} student."
+    safe_text = truncate_text(text)
+    prompt = f"Text to simplify:\n\n{safe_text}"
     return await _chat(system, prompt)
 
 async def extract_keywords(text: str) -> dict:
     system = "You are an extractor. Return JSON ONLY: {\"keywords\":[], \"definitions\":[]}"
-    prompt = f"Extract from this text:\n\n{text}"
+    safe_text = truncate_text(text)
+    prompt = f"Extract from this text:\n\n{safe_text}"
     raw = await _chat(system, prompt)
     try:
         match = re.search(r"\{.*\}", raw, re.DOTALL)
@@ -109,35 +113,19 @@ async def extract_keywords(text: str) -> dict:
     except Exception: return {"keywords":[], "definitions":[]}
 
 async def translate_note(text: str, target_language: str) -> str:
-    system = f"Translate to {target_language}. Use ONLY the text provided."
-    return await _chat(system, text)
+    system = f"Translate to {target_language}."
+    safe_text = truncate_text(text, max_chars=4000) # Smaller for translation
+    return await _chat(system, safe_text)
 
 async def generate_big_questions(text: str) -> List[Dict]:
     system = (
-        "Generate 3 university-style long questions (10-16 marks) based on the notes. "
-        "For each question, provide a structured outline including Introduction, Architecture, Working, Applications, and Conclusion. "
+        "Generate 3 university-style long questions based on the notes. "
         "Return as JSON list: [{\"question\": \"...\", \"marks\": 15, \"outline\": [\"...\", \"...\"]}]"
     )
-    prompt = f"Notes:\n\n{text}"
+    safe_text = truncate_text(text)
+    prompt = f"Notes:\n\n{safe_text}"
     raw = await _chat(system, prompt)
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        return []
-    except Exception:
-        return []
-
-async def generate_mind_map(text: str) -> dict:
-    system = "Generate a Mermaid mindmap for the following text. Return ONLY the mermaid code block."
-    return {"code": await _chat(system, text)}
-
-async def generate_flowchart(text: str) -> dict:
-    system = "Generate a Mermaid flowchart for the following text. Return ONLY the mermaid code block starting with graph TD."
-    return {"code": await _chat(system, text)}
-
-async def predict_exam_topics(text: str, weak_topics: List[str]) -> List[str]:
-    system = "Identify most likely exam topics based on the notes and weak areas."
-    prompt = f"Notes: {text}\nWeak Areas: {weak_topics}"
-    raw = await _chat(system, prompt)
-    return [t.strip() for t in raw.split("\n") if t.strip()]
+        return json.loads(match.group()) if match else []
+    except Exception: return []

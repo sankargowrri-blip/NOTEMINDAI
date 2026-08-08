@@ -13,7 +13,6 @@ export default function Mermaid({ chart }: { chart: string }) {
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<boolean>(false);
   const id = useId();
-  // Safe ID for SVG (no special characters)
   const safeId = `mermaid-${id.replace(/:/g, "")}`;
 
   useEffect(() => {
@@ -22,8 +21,9 @@ export default function Mermaid({ chart }: { chart: string }) {
 
       try {
         setError(false);
-        // Clean common AI mistakes
         let cleanChart = chart.trim();
+
+        // Remove conversational filler if AI missed backticks
         const lines = cleanChart.split('\n');
         const validStartKeywords = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'journey', 'gantt', 'pie', 'quadrantChart', 'mindmap', 'timeline', 'gitGraph'];
 
@@ -33,10 +33,13 @@ export default function Mermaid({ chart }: { chart: string }) {
 
         if (firstValidLineIndex !== -1) {
           cleanChart = lines.slice(firstValidLineIndex).join('\n');
-        } else {
-          // If no valid keyword found, it's probably not a diagram
-          return;
         }
+
+        // Auto-fix unquoted labels which often cause syntax errors
+        // Matches node definitions like: A(Label with spaces) or B[Label (with parens)]
+        // and wraps the label in quotes: A["Label with spaces"]
+        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\(([^)]+)\)/g, '$1(["$2"])');
+        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\[([^\]]+)\]/g, '$1["$2"]');
 
         const { svg } = await mermaid.render(safeId, cleanChart);
         setSvg(svg);
@@ -51,8 +54,11 @@ export default function Mermaid({ chart }: { chart: string }) {
 
   if (error) {
     return (
-      <div className="p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl my-2 italic text-xs text-gray-500 text-center">
-        (Could not render diagram)
+      <div className="p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl my-2 italic text-[10px] text-gray-500 text-center flex flex-col items-center gap-2">
+        <span>(Diagram syntax issue detected)</span>
+        <pre className="max-w-full overflow-x-auto text-[9px] bg-white/50 dark:bg-black/20 p-2 rounded">
+          {chart.slice(0, 100)}...
+        </pre>
       </div>
     );
   }
@@ -61,7 +67,7 @@ export default function Mermaid({ chart }: { chart: string }) {
 
   return (
     <div
-      className="mermaid-container flex justify-center py-4 bg-white dark:bg-gray-800 rounded-xl my-2 shadow-sm overflow-x-auto transition-opacity duration-300"
+      className="mermaid-container flex justify-center py-4 bg-white dark:bg-gray-800 rounded-xl my-2 shadow-sm overflow-x-auto"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
