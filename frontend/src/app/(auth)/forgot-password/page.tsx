@@ -2,11 +2,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Sparkles, Loader2, ArrowLeft, Mail, ShieldCheck, KeyRound } from "lucide-react";
+import { Sparkles, Loader2, ArrowLeft, ShieldCheck, KeyRound, AlertTriangle } from "lucide-react";
 import { authApi } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
-  const [step, setStep] = useState<"email" | "reset">("email");
+  const [step, setStep] = useState<"email" | "reset" | "legacy">("email");
   const [email, setEmail] = useState("");
   const [securityQuestion, setSecurityQuestion] = useState("");
   const [answer, setAnswer] = useState("");
@@ -19,9 +19,13 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     try {
       const res = await authApi.forgotPassword(email);
-      setSecurityQuestion(res.data.security_question);
-      setStep("reset");
-      toast.success("Account found! Please answer your security question.");
+      if (res.data.is_legacy) {
+        setStep("legacy");
+      } else {
+        setSecurityQuestion(res.data.security_question);
+        setStep("reset");
+        toast.success("Account found! Please answer your security question.");
+      }
     } catch (err: any) {
       const msg = err.response?.data?.detail || "No account found with that email.";
       toast.error(msg);
@@ -63,7 +67,7 @@ export default function ForgotPasswordPage() {
         </div>
 
         <div className="card bg-white/5 border-white/10 p-8 shadow-2xl">
-          {step === "email" ? (
+          {step === "email" && (
             <>
               <h2 className="text-xl font-bold text-white mb-1">Account Recovery</h2>
               <p className="text-gray-400 text-sm mb-6">Enter your email to verify your identity.</p>
@@ -87,7 +91,9 @@ export default function ForgotPasswordPage() {
                 <ArrowLeft size={14} /> Back to Sign In
               </Link>
             </>
-          ) : (
+          )}
+
+          {step === "reset" && (
             <>
               <div className="flex items-center gap-2 mb-2 text-brand-400">
                 <ShieldCheck size={20} />
@@ -139,6 +145,29 @@ export default function ForgotPasswordPage() {
                 Use a different email
               </button>
             </>
+          )}
+
+          {step === "legacy" && (
+            <div className="text-center space-y-6 animate-fade-in">
+              <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
+                <AlertTriangle size={32} />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-xl font-bold text-white">Old Account Detected</h2>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  Your account was created before the new security system was added.
+                  For your protection, please <strong className="text-white">create a NEW account</strong> to use the latest features.
+                </p>
+              </div>
+              <div className="pt-4 space-y-3">
+                <Link href="/register" className="btn-primary w-full justify-center block text-center">
+                  Create New Secure Account
+                </Link>
+                <Link href="/login" className="text-gray-500 hover:text-white text-xs block transition-colors">
+                  Back to Sign In
+                </Link>
+              </div>
+            </div>
           )}
         </div>
       </div>

@@ -73,7 +73,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
             hashed_password=hash_password(body.password),
             role=body.role,
             security_question=body.security_question,
-            security_answer=body.security_answer.strip().lower(), # Store normalized for comparison
+            security_answer=body.security_answer.strip().lower(),
             is_email_verified=False,
         )
         db.add(user)
@@ -134,13 +134,16 @@ async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depend
     if not user:
         raise HTTPException(status_code=404, detail="No account found with this email.")
     
+    # FOR LEGACY USERS (Created before the update):
+    # If they have no question set, we provide a temporary fallback question.
     if not user.security_question:
-        raise HTTPException(
-            status_code=400, 
-            detail="This account does not have a security question set. Please contact support."
-        )
+        return {
+            "security_question": "LEGACY_USER_RECOVERY", 
+            "is_legacy": True,
+            "message": "Your account was created before security questions were added. Please register a NEW account for full security, or contact admin."
+        }
         
-    return {"security_question": user.security_question}
+    return {"security_question": user.security_question, "is_legacy": False}
 
 
 @router.post("/local-reset-password")
@@ -153,6 +156,13 @@ async def local_reset_password(body: LocalResetRequest, db: AsyncSession = Depen
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    # Handle legacy block - prevent lockouts but maintain structure
+    if not user.security_answer:
+         raise HTTPException(
+             status_code=400, 
+             detail="This account is from an older version. Please create a new account to use the new security features."
+         )
+
     if user.security_answer != body.security_answer.strip().lower():
         raise HTTPException(status_code=400, detail="Incorrect security answer.")
     
@@ -163,7 +173,6 @@ async def local_reset_password(body: LocalResetRequest, db: AsyncSession = Depen
 
 @router.post("/reset-password")
 async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
-    # Legacy endpoint for email-based reset (optional)
     from jose import JWTError
     try:
         payload = decode_token(body.token)
