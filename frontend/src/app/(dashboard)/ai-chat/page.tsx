@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { aiApi, notesApi } from "@/lib/api";
-import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark, RefreshCw, Palette, ArrowDown } from "lucide-react";
+import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark, RefreshCw, ArrowDown, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
 import ReactMarkdown from "react-markdown";
@@ -198,13 +198,24 @@ function AIChatContent() {
     }
   };
 
+  const handleClearHistory = () => {
+    if (confirm("Clear this conversation? This will remove all old diagram blocks.")) {
+      setMessages([{
+        role: "assistant",
+        content: "Conversation cleared. I am now in NoteMind V2 (Wise Assistant) mode. How can I help you study?",
+      }]);
+      setSessionId(undefined);
+      toast.success("Chat history cleared!");
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-130px)] max-w-5xl mx-auto w-full animate-fade-in px-2 md:px-4 relative">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3">
         <div className="flex items-center gap-2">
           <Brain className="text-brand-600" size={24} />
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">AI Assistant</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">NoteMind AI Assistant (V2)</h1>
 
           <select
             value={activeNoteId || ""}
@@ -237,6 +248,14 @@ function AIChatContent() {
             title={isSpeaking ? "Stop Voice" : (isMuted ? "Unmute Assistant" : "Mute Assistant")}
           >
             {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+          </button>
+
+          <button
+            onClick={handleClearHistory}
+            className="p-2 rounded-lg transition-all border border-transparent hover:bg-red-50 dark:hover:bg-red-950 text-gray-500 hover:text-red-600"
+            title="Clear Chat History"
+          >
+            <Trash2 size={20} />
           </button>
         </div>
       </div>
