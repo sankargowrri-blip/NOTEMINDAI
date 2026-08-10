@@ -100,7 +100,7 @@ function AIChatContent() {
         } else {
           setMessages([{
             role: "assistant",
-            content: "Hi! I'm your AI study assistant. I can explain your notes, search the web for doubts, and even draw diagrams. Pick a note below and let's start!",
+            content: "Hi! I'm your NoteMind V2 study assistant. I can explain your notes, search the web for doubts, and help you prepare for exams with concise answers. Pick a note below and let's start!",
           }]);
         }
       } catch (e) {
