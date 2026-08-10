@@ -1,13 +1,13 @@
 """Quiz generation and attempt router with randomized variety logic."""
 from __future__ import annotations
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from pydantic import BaseModel, Field
 import json
 import re
 import random
 import logging
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from pydantic import BaseModel, Field
 
 from app.db.postgres import get_db
 from app.models.user import User
@@ -108,7 +108,6 @@ async def get_quiz(
 def _normalize(text: str) -> str:
     """Helper to strip punctuation, extra words, and case for robust matching."""
     if not text: return ""
-    # Remove common AI prefixes and punctuation
     cleaned = re.sub(r'^[A-D][.)\s-]+', '', str(text))
     cleaned = re.sub(r'^(the|a|an)\s+', '', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'[^\w\s]', '', cleaned)
@@ -116,23 +115,19 @@ def _normalize(text: str) -> str:
 
 
 def _smart_match(user_ans: str, correct_ans: str, options: dict | None = None) -> bool:
-    """Accurately analyzes correct/incorrect answers with high tolerance for AI sentence drift."""
+    """Accurately analyzes correct/incorrect answers."""
     u = str(user_ans).strip().upper()
     c = str(correct_ans).strip().upper()
     
-    # 1. Direct match (A == A)
     if u == c: return True
     
-    # 2. Extract letter from AI sentence (e.g. AI said "The answer is A" -> "A")
     clean_correct = re.sub(r'[^A-D]', '', c)[:1]
     if u == clean_correct and u in "ABCD": return True
 
-    # 3. Match user choice (letter) against option text
     if options and u in "ABCD":
         opt_text = str(options.get(u, "")).strip().upper()
         norm_opt = _normalize(opt_text)
-        norm_correct = _normalize(correct_ans)
-        # Match if option text is same as correct text OR if one is inside the other
+        norm_correct = _normalize(c)
         if norm_opt and (norm_opt == norm_correct or norm_opt in norm_correct or norm_correct in norm_opt):
             return True
 

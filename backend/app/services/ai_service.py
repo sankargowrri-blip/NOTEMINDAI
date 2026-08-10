@@ -24,7 +24,6 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
-                # Truncate history to last 2 messages for extreme safety
                 history = [m for m in messages if m.get("role") != "system"]
                 chat_messages.extend(history[-2:]) 
             chat_messages.append({"role": "user", "content": user})
@@ -47,11 +46,12 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     """
     is_web = False
     system = (
-        "You are NoteMind AI. Clear doubts concisely. "
-        "1. GROUNDING: Use [NOTE TEXT] first. "
-        "2. DIAGRAMS: Generate simple Mermaid syntax ONLY if highly needed. "
+        "You are NoteMind AI, an expert study assistant. Clear any doubt the student has. "
+        "1. GROUNDING: Use the provided [NOTE TEXT] first. "
+        "2. STRUCTURE: Provide step-by-step explanations and real-world examples. "
+        "3. DIAGRAMS: Generate simple Mermaid syntax inside ```mermaid ... ``` ONLY if a diagram is highly helpful. "
         "IMPORTANT: Node labels must use double quotes: id[\"Label\"]. Use standard arrows --> only. "
-        "3. TONE: Prefix with [Notes] or [Web]."
+        "4. TONE: Prefix with [Notes] or [Web]."
     )
     
     user_prompt = ""
@@ -61,7 +61,6 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     else:
         is_web = True
     
-    # Check for web search keywords
     should_search = is_web
     if not should_search:
         keywords = ["latest", "recent", "who is", "what is", "news", "today"]
@@ -71,7 +70,6 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     if should_search:
         web_results = await search_tool.search(question)
         if web_results:
-            # Truncate web results to save tokens
             web_str = truncate_text(json.dumps(web_results), max_chars=1000)
             user_prompt += f"WEB SEARCH RESULTS:\n{web_str}\n\n"
             is_web = True

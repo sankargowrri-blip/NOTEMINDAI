@@ -2,8 +2,9 @@
 from __future__ import annotations
 import logging
 import re
+import json
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from pydantic import BaseModel, EmailStr
@@ -17,6 +18,8 @@ from app.services.auth_service import (
     create_refresh_token, 
     decode_token
 )
+from app.services.email_service import send_reset_password_email
+from app.config import settings
 
 router = APIRouter()
 logger = logging.getLogger("notemind")
@@ -131,13 +134,11 @@ async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depend
     if not user:
         raise HTTPException(status_code=404, detail="No account found with this email.")
     
-    # FOR LEGACY USERS (Created before the update):
-    # If they have no question set, we provide a temporary fallback question.
     if not user.security_question:
         return {
             "security_question": "LEGACY_USER_RECOVERY", 
             "is_legacy": True,
-            "message": "Your account was created before security questions were added. Please register a NEW account for full security, or contact admin."
+            "message": "Please contact support for legacy account recovery."
         }
         
     return {"security_question": user.security_question, "is_legacy": False}
@@ -153,12 +154,8 @@ async def local_reset_password(body: LocalResetRequest, db: AsyncSession = Depen
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Handle legacy block - prevent lockouts but maintain structure
     if not user.security_answer:
-         raise HTTPException(
-             status_code=400, 
-             detail="This account is from an older version. Please create a new account to use the new security features."
-         )
+         raise HTTPException(status_code=400, detail="This account requires legacy recovery.")
 
     if user.security_answer != body.security_answer.strip().lower():
         raise HTTPException(status_code=400, detail="Incorrect security answer.")
