@@ -1,5 +1,4 @@
 from __future__ import annotations
-from builtins import len, Exception, str
 import logging
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
@@ -56,8 +55,7 @@ async def init_db():
                     await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question VARCHAR(255)"))
                     await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer VARCHAR(255)"))
                     
-                    # Fix Deletion (Cascading): Ensure all child tables have CASCADE enabled
-                    # We drop and recreate constraints for all tables that reference notes
+                    # Fix Deletion (Cascading)
                     fixes = [
                         ("quizzes", "notes", "note_id", "quizzes_note_id_fkey"),
                         ("flashcard_sets", "notes", "note_id", "flashcard_sets_note_id_fkey"),
@@ -68,7 +66,6 @@ async def init_db():
                     
                     for table, parent, column, constraint in fixes:
                         try:
-                            # Use IF EXISTS and recreate with ON DELETE CASCADE
                             await conn.execute(text(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {constraint}"))
                             await conn.execute(text(f"ALTER TABLE {table} ADD CONSTRAINT {constraint} FOREIGN KEY ({column}) REFERENCES {parent}(id) ON DELETE CASCADE"))
                         except Exception:
@@ -81,7 +78,6 @@ async def init_db():
             # 2. Create tables via models
             logger.info("DB_LOG: Connection established, importing models...")
             from app.models import user, note, quiz as quiz_model, flashcard, analytics as analytics_model  # noqa
-            logger.info("DB_LOG: Creating tables if they don't exist...")
             await conn.run_sync(Base.metadata.create_all)
         
         logger.info("DB_LOG: Database tables verified successfully.")

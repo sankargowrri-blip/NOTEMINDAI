@@ -1,4 +1,6 @@
 """Flashcard generation router."""
+from __future__ import annotations
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -12,6 +14,7 @@ from app.routers.deps import get_current_user
 from app.services.quiz_service import generate_flashcards
 
 router = APIRouter()
+logger = logging.getLogger("notemind.flashcards")
 
 
 class FlashcardGenerateRequest(BaseModel):
@@ -32,27 +35,42 @@ async def create_flashcards(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Note).where(Note.id == body.note_id, Note.owner_id == current_user.id))
-    note = result.scalar_one_or_none()
-    if not note:
-        raise HTTPException(404, detail="Note not found")
+    try:
+        result = await db.execute(select(Note).where(Note.id == body.note_id, Note.owner_id == current_user.id))
+        note = result.scalar_one_or_none()
+        if not note:
+            raise HTTPException(404, detail="Note not found")
 
-    text = note.refined_text or note.raw_ocr_text or ""
-    cards = generate_flashcards(text, body.card_type, body.count)
-    if not cards:
-        raise HTTPException(422, detail="Could not generate flashcards from this note.")
+        text = note.refined_text or note.raw_ocr_text or ""
+        if not text.strip():
+            raise HTTPException(400, detail="Note has no readable text for study material.")
 
-    fset = FlashcardSet(
-        note_id=body.note_id,
-        owner_id=current_user.id,
-        title=f"{note.title} — Flashcards",
-        card_type=body.card_type,
-        cards=cards,
-    )
-    db.add(fset)
-    await db.commit()
-    await db.refresh(fset)
-    return {"set_id": fset.id, "title": fset.title, "cards": fset.cards, "count": len(cards)}
+        cards = generate_flashcards(text, body.card_type, body.count)
+        
+        if not cards:
+            if body.card_type != "standard":
+                logger.info("Retrying flashcard generation with 'standard' type...")
+                cards = generate_flashcards(text, "standard", body.count)
+
+        if not cards:
+            raise HTTPException(422, detail="Unable to generate flashcards. Please try again with a different note.")
+
+        fset = FlashcardSet(
+            note_id=body.note_id,
+            owner_id=current_user.id,
+            title=f"{note.title} — Flashcards",
+            card_type=body.card_type,
+            cards=cards,
+        )
+        db.add(fset)
+        await db.commit()
+        await db.refresh(fset)
+        return {"set_id": fset.id, "title": fset.title, "cards": fset.cards, "count": len(cards)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"FLASHCARD_GEN_FAILED: {str(e)}")
+        raise HTTPException(500, detail=f"Server error during generation: {str(e)}")
 
 
 @router.get("/{set_id}")

@@ -1,28 +1,34 @@
 """Notes CRUD router with unified cleanup logic."""
 from __future__ import annotations
+import logging
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, delete
 from pydantic import BaseModel
 
 from app.db.postgres import get_db
 from app.models.user import User
 from app.models.note import Note
+from app.models.quiz import Quiz, QuizAttempt
+from app.models.flashcard import FlashcardSet
+from app.models.analytics import StudySession, WeakTopic
 from app.routers.deps import get_current_user
 from app.services.storage_service import delete_file
 
 router = APIRouter()
+logger = logging.getLogger("notemind.notes")
 
 
 class NoteUpdateRequest(BaseModel):
-    title: str | None = None
-    formatted_text: str | None = None
-    subject: str | None = None
-    semester: str | None = None
-    unit: str | None = None
-    chapter: str | None = None
-    tags: list[str] | None = None
-    is_favourite: bool | None = None
+    title: Optional[str] = None
+    formatted_text: Optional[str] = None
+    subject: Optional[str] = None
+    semester: Optional[str] = None
+    unit: Optional[str] = None
+    chapter: Optional[str] = None
+    tags: Optional[List[str]] = None
+    is_favourite: Optional[bool] = None
 
 
 def _note_to_dict(note: Note) -> dict:
@@ -49,10 +55,10 @@ def _note_to_dict(note: Note) -> dict:
 
 @router.get("/")
 async def list_notes(
-    subject: str | None = Query(None),
-    semester: str | None = Query(None),
-    tag: str | None = Query(None),
-    favourite: bool | None = Query(None),
+    subject: Optional[str] = Query(None),
+    semester: Optional[str] = Query(None),
+    tag: Optional[str] = Query(None),
+    favourite: Optional[bool] = Query(None),
     limit: int = Query(20, le=100),
     offset: int = Query(0),
     current_user: User = Depends(get_current_user),
@@ -106,9 +112,12 @@ async def update_note(
 
     # Re-index if text changed
     if body.formatted_text:
-        from app.db.vector_store import index_note
-        chunks = [c for c in note.formatted_text.split("\n\n") if c.strip()]
-        index_note(str(current_user.id), str(note.id), chunks)
+        try:
+            from app.db.vector_store import index_note
+            chunks = [c for c in note.formatted_text.split("\n\n") if c.strip()]
+            index_note(str(current_user.id), str(note.id), chunks)
+        except Exception:
+            pass
 
     return {"message": "Note updated", "note_id": note.id}
 
@@ -119,26 +128,38 @@ async def delete_note(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # 1. Fetch note to get file URLs
-    result = await db.execute(select(Note).where(Note.id == note_id, Note.owner_id == current_user.id))
-    note = result.scalar_one_or_none()
-    if not note:
-        raise HTTPException(404, detail="Note not found")
-
-    # 2. Cleanup MongoDB data
+    """Unified deletion with manual cleanup of all dependencies."""
     try:
-        from app.db.mongo import notes_collection, versions_collection
-        await notes_collection().delete_many({"note_id": note_id})
-        await versions_collection().delete_many({"note_id": note_id})
-    except Exception:
-        pass
+        # 1. Fetch note
+        result = await db.execute(select(Note).where(Note.id == note_id, Note.owner_id == current_user.id))
+        note = result.scalar_one_or_none()
+        if not note:
+            raise HTTPException(404, detail="Note not found")
 
-    # 3. Cleanup Physical Files
-    if note.original_file_url:
-        await delete_file(note.original_file_url)
-    if note.enhanced_file_url:
-        await delete_file(note.enhanced_file_url)
+        # 2. Manual Cleanup child records
+        await db.execute(delete(QuizAttempt).where(QuizAttempt.note_id == note_id))
+        await db.execute(delete(Quiz).where(Quiz.note_id == note_id))
+        await db.execute(delete(FlashcardSet).where(FlashcardSet.note_id == note_id))
+        await db.execute(delete(StudySession).where(StudySession.note_id == note_id))
+        await db.execute(delete(WeakTopic).where(WeakTopic.note_id == note_id))
 
-    # 4. Delete Main Record (triggers PostgreSQL CASCADE for Quizzes/Analytics)
-    await db.delete(note)
-    await db.commit()
+        # 3. Cleanup AI data
+        try:
+            from app.db.mongo import notes_collection, versions_collection
+            await notes_collection().delete_many({"note_id": note_id})
+            await versions_collection().delete_many({"note_id": note_id})
+        except Exception:
+            pass
+
+        # 4. Storage cleanup
+        if note.original_file_url:
+            await delete_file(note.original_file_url)
+        if note.enhanced_file_url:
+            await delete_file(note.enhanced_file_url)
+
+        # 5. Delete note record
+        await db.delete(note)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(500, detail=f"Unable to delete the note: {str(e)}")

@@ -24,6 +24,7 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
+                # Truncate history to last 2 messages for extreme safety
                 history = [m for m in messages if m.get("role") != "system"]
                 chat_messages.extend(history[-2:]) 
             chat_messages.append({"role": "user", "content": user})
@@ -42,30 +43,39 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
 
 async def rag_chat(user_id: str, question: str, note_text: str = "", history: List[Dict] = None) -> dict:
     """
-    Enhanced RAG Chat with extreme token management.
+    Enhanced RAG Chat with strict token management and Diagram Support.
     """
+    
     is_web = False
+    
+    # SYSTEM PROMPT FOR CONCISE EXPLANATIONS & DIAGRAMS
     system = (
-        "You are NoteMind AI, an expert study assistant. Clear any doubt the student has. "
-        "1. GROUNDING: Use the provided [NOTE TEXT] first. "
-        "2. STRUCTURE: Provide step-by-step explanations and real-world examples. "
-        "3. DIAGRAMS: Generate simple Mermaid syntax inside ```mermaid ... ``` ONLY if a diagram is highly helpful. "
-        "IMPORTANT: Node labels must use double quotes: id[\"Label\"]. Use standard arrows --> only. "
-        "4. TONE: Prefix with [Notes] or [Web]."
+        "You are NoteMind AI, an expert study assistant. Your goal is to provide SHORT, DIRECT, and EXAM-FRIENDLY answers. "
+        "1. DEFAULT STYLE: Give the direct definition first. Use bullet points for key facts. Avoid long paragraphs. "
+        "2. GROUNDING: Use the provided [NOTE TEXT] first. If information is missing, use [WEB SEARCH]. "
+        "3. DIAGRAMS: ONLY generate a Mermaid diagram if the user EXPLICITLY asks for one (e.g., 'Draw a flowchart'). "
+        "If requested, use valid Mermaid syntax inside triple backticks: ```mermaid ... ```. "
+        "IMPORTANT: Always wrap node labels in double quotes: id[\"Label text\"]. "
+        "4. TONE: Prefix answers with [Notes] or [Web]. Keep it simple for students."
     )
     
     user_prompt = ""
     if note_text and len(note_text.strip()) > 50:
-        safe_text = truncate_text(note_text, max_chars=2500)
+        safe_text = truncate_text(note_text)
         user_prompt += f"NOTE TEXT:\n{safe_text}\n\n"
     else:
         is_web = True
     
+    # Internet Search Fallback
     should_search = is_web
     if not should_search:
+        # Check for keywords that trigger web search - using a safe way to avoid linter issues with 'any'
         keywords = ["latest", "recent", "who is", "what is", "news", "today"]
-        if any(word in question.lower() for word in keywords):
-            should_search = True
+        question_lower = question.lower()
+        for word in keywords:
+            if word in question_lower:
+                should_search = True
+                break
 
     if should_search:
         web_results = await search_tool.search(question)
@@ -84,9 +94,9 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     }
 
 async def generate_summary(text: str, mode: str = "bullet") -> str:
-    system = "Summarize note content."
+    system = "You are a professional note summarizer."
     safe_text = truncate_text(text, 2500)
-    prompt = f"Summarize as {mode}: \n\n{safe_text}"
+    prompt = f"Summarize this text as {mode}: \n\n{safe_text}"
     return await _chat(system, prompt)
 
 async def simplify_note(text: str, level: str = "school") -> str:
@@ -100,8 +110,12 @@ async def extract_keywords(text: str) -> dict:
     raw = await _chat(system, safe_text)
     try:
         match = re.search(r"\{.*\}", raw, re.DOTALL)
-        return json.loads(match.group()) if match else {"keywords":[], "definitions":[]}
-    except: return {"keywords":[], "definitions":[]}
+        if match:
+            # Safely parse JSON
+            return json.loads(match.group())
+        return {"keywords":[], "definitions":[]}
+    except Exception: 
+        return {"keywords":[], "definitions":[]}
 
 async def translate_note(text: str, target_language: str) -> str:
     safe_text = truncate_text(text, 2000)
@@ -113,5 +127,8 @@ async def generate_big_questions(text: str) -> List[Dict]:
     raw = await _chat(system, safe_text)
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
-        return json.loads(match.group()) if match else []
-    except Exception: return []
+        if match:
+            return json.loads(match.group())
+        return []
+    except Exception: 
+        return []

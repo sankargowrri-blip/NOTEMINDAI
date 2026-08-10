@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { aiApi, notesApi } from "@/lib/api";
-import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark, RefreshCw, Palette } from "lucide-react";
+import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark, RefreshCw, Palette, ArrowDown } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
 import ReactMarkdown from "react-markdown";
@@ -37,6 +37,7 @@ function AIChatContent() {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   const [notes, setNotes] = useState<any[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<number | null>(urlNoteId ? Number(urlNoteId) : null);
@@ -44,16 +45,26 @@ function AIChatContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognition = useRef<any>(null);
 
-  // Auto-scroll logic: Only scroll if user is already at the bottom
-  const scrollToBottom = useCallback(() => {
+  // Smart Auto-scroll: Only scroll if user is already at the bottom
+  const scrollToBottom = useCallback((force = false) => {
     if (scrollRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-      const isAtBottom = scrollHeight - scrollTop <= clientHeight + 100;
-      if (isAtBottom) {
+      const isAtBottom = scrollHeight - scrollTop <= clientHeight + 150;
+
+      if (force || isAtBottom) {
         scrollRef.current.scrollTo({ top: scrollHeight, behavior: "smooth" });
       }
     }
   }, []);
+
+  // Monitor scroll position to show/hide "Jump to bottom" button
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const isNearBottom = scrollHeight - scrollTop <= clientHeight + 200;
+      setShowScrollButton(!isNearBottom);
+    }
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -123,6 +134,7 @@ function AIChatContent() {
     if (isMuted || typeof window === "undefined" || !window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
+      // Remove Mermaid code and prefixes from audio
       const cleanText = text.replace(/```mermaid[\s\S]*?```/g, "").replace(/\[Notes\]|\[Web\]/g, "");
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.onstart = () => setIsSpeaking(true);
@@ -189,7 +201,8 @@ function AIChatContent() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-130px)] max-w-5xl mx-auto w-full animate-fade-in px-2 md:px-4">
+    <div className="flex flex-col h-[calc(100vh-130px)] max-w-5xl mx-auto w-full animate-fade-in px-2 md:px-4 relative">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3">
         <div className="flex items-center gap-2">
           <Brain className="text-brand-600" size={24} />
@@ -218,10 +231,10 @@ function AIChatContent() {
           <button
             onClick={() => isSpeaking ? stopSpeaking() : setIsMuted(!isMuted)}
             className={clsx(
-              "p-2 rounded-lg transition-all border",
+              "p-2 rounded-lg transition-all border shadow-sm",
               isSpeaking
                 ? "bg-brand-50 border-brand-200 text-brand-600 animate-pulse"
-                : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 border-transparent"
+                : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 border-transparent bg-white dark:bg-gray-900"
             )}
             title={isSpeaking ? "Stop Voice" : (isMuted ? "Unmute Assistant" : "Mute Assistant")}
           >
@@ -244,10 +257,11 @@ function AIChatContent() {
         ))}
       </div>
 
-      {/* Messages */}
+      {/* Messages Area - Only this scrolls */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto space-y-6 pb-4 scroll-smooth pr-1"
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto space-y-6 pb-4 scroll-smooth pr-1 custom-scrollbar"
       >
         {messages.map((msg, i) => (
           <div key={i} className={clsx("flex gap-3", msg.role === "user" ? "flex-row-reverse" : "")}>
@@ -259,7 +273,7 @@ function AIChatContent() {
             </div>
             <div className={clsx("max-w-[85%] md:max-w-[75%]", msg.role === "user" ? "flex flex-col items-end" : "")}>
               <div className={clsx(
-                "rounded-2xl px-4 py-3 text-sm md:text-base leading-relaxed shadow-sm",
+                "rounded-2xl px-4 py-3 text-sm md:text-base leading-relaxed shadow-sm prose dark:prose-invert max-w-none",
                 msg.role === "assistant"
                   ? "bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-900 dark:text-gray-100"
                   : "bg-brand-600 text-white"
@@ -286,16 +300,16 @@ function AIChatContent() {
                   msg.content
                 )}
               </div>
-              <div className="flex items-center justify-between w-full mt-2 px-1">
+              <div className="flex items-center justify-between w-full mt-2 px-1 text-[10px]">
                 <div className="flex items-center gap-2">
                   {msg.is_web && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
-                      Internet Augmented
+                    <span className="font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
+                      Web Source
                     </span>
                   )}
                   {msg.sources && msg.sources.length > 0 && (
-                    <p className="text-[10px] text-gray-400 font-medium">
-                      Verified Notes
+                    <p className="text-gray-400 font-medium">
+                      Source: {activeNoteId ? "Selected Note" : "Notes"}
                     </p>
                   )}
                 </div>
@@ -339,8 +353,19 @@ function AIChatContent() {
         )}
       </div>
 
+      {/* Floating Jump to Bottom Button */}
+      {showScrollButton && (
+        <button
+          onClick={() => scrollToBottom(true)}
+          className="absolute bottom-24 right-6 p-2 bg-brand-600 text-white rounded-full shadow-lg hover:bg-brand-700 transition-all animate-bounce z-20"
+          title="Jump to latest"
+        >
+          <ArrowDown size={20} />
+        </button>
+      )}
+
       {/* Input */}
-      <div className="mt-2 p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg mb-2">
+      <div className="mt-2 p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg mb-2 relative z-10">
         <div className="flex gap-2 items-center">
           <button
             onClick={toggleListening}

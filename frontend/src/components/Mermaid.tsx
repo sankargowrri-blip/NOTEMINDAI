@@ -2,13 +2,17 @@
 import React, { useEffect, useState, useId } from "react";
 import mermaid from "mermaid";
 
-mermaid.initialize({
-  startOnLoad: false,
-  theme: "default",
-  securityLevel: "loose",
-  fontFamily: "Inter",
-  suppressError: true,
-});
+// Initialize mermaid once outside the component
+if (typeof window !== "undefined") {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "default",
+    securityLevel: "loose",
+    fontFamily: "Inter",
+    // In newer versions, we use specialized error handling
+    // rather than relying on suppressError.
+  });
+}
 
 export default function Mermaid({ chart }: { chart: string }) {
   const [svg, setSvg] = useState<string>("");
@@ -18,6 +22,8 @@ export default function Mermaid({ chart }: { chart: string }) {
   const safeId = `mermaid-${id.replace(/:/g, "")}-${Math.floor(Math.random() * 10000)}`;
 
   useEffect(() => {
+    let isMounted = true;
+
     const renderChart = async () => {
       if (!chart || chart.trim().length < 10) return;
 
@@ -25,7 +31,7 @@ export default function Mermaid({ chart }: { chart: string }) {
         setError(false);
         let cleanChart = chart.trim();
 
-        // Find valid start
+        // 1. Find valid start keyword to ignore any conversational filler
         const validStartKeywords = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'journey', 'gantt', 'pie', 'quadrantChart', 'mindmap', 'timeline', 'gitGraph'];
         const lines = cleanChart.split('\n');
         const startIdx = lines.findIndex(l => validStartKeywords.some(k => l.trim().startsWith(k)));
@@ -33,42 +39,54 @@ export default function Mermaid({ chart }: { chart: string }) {
         if (startIdx === -1) return;
         cleanChart = lines.slice(startIdx).join('\n');
 
-        // Fix syntax (Quotes)
+        // 2. Auto-fix labels: Wrap labels in double quotes to prevent syntax errors
         cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\(([^"]+?)\)/g, (match, p1, p2) => {
             return `${p1}("${p2.replace(/"/g, "'")}")`;
         });
-        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\[([^"]+?)\]/g, (match, p1, p2) => {
+        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\[([^\]"]+?)\]/g, (match, p1, p2) => {
             return `${p1}["${p2.replace(/"/g, "'")}"]`;
         });
-        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\{([^"]+?)\}/g, (match, p1, p2) => {
+        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\{([^}]+?)\}/g, (match, p1, p2) => {
             return `${p1}{"${p2.replace(/"/g, "'")}"}`;
         });
 
-        // Safety Pre-check
+        // 3. Syntax Pre-check
+        // mermaid.parse is now async and can throw errors.
+        // We use it to validate without side effects.
         try {
             await mermaid.parse(cleanChart);
         } catch (e) {
-            setError(true);
+            if (isMounted) setError(true);
             return;
         }
 
+        // 4. Actual Rendering
+        // We use mermaid.render which is async and returns the SVG string.
         const { svg: renderedSvg } = await mermaid.render(safeId, cleanChart);
-        setSvg(renderedSvg);
+
+        if (isMounted) {
+          setSvg(renderedSvg);
+        }
       } catch (err) {
-        setError(true);
+        console.error("Mermaid rendering failed:", err);
+        if (isMounted) setError(true);
       }
     };
 
     renderChart();
+
+    return () => {
+      isMounted = false;
+    };
   }, [chart, safeId]);
 
-  // If there is an error, we return null to completely HIDE the broken diagram.
-  // This prevents the "Syntax error" bomb icon from appearing.
+  // IMPORTANT: We return null on error or empty SVG.
+  // This prevents the "Syntax error in text" bomb icon from appearing at the bottom of the page.
   if (error || !svg) return null;
 
   return (
     <div
-      className="mermaid-container flex justify-center py-4 bg-white dark:bg-gray-800 rounded-xl my-2 shadow-sm overflow-x-auto transition-all duration-300"
+      className="mermaid-container flex justify-center py-4 bg-white dark:bg-gray-800 rounded-xl my-4 shadow-sm overflow-x-auto border border-gray-100 dark:border-gray-700 animate-fade-in"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
