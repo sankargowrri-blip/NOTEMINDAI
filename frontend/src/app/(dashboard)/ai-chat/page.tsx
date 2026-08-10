@@ -7,7 +7,6 @@ import clsx from "clsx";
 import toast from "react-hot-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import Mermaid from "@/components/Mermaid";
 
 interface Message {
   role: "user" | "assistant";
@@ -19,7 +18,6 @@ interface Message {
 const PROMPT_MODES = [
   "Explain this chapter",
   "Summarize key points",
-  "Draw a Flowchart",
   "Give real-world examples",
   "Important topics for exam",
   "List formulas",
@@ -134,8 +132,8 @@ function AIChatContent() {
     if (isMuted || typeof window === "undefined" || !window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
-      // Remove Mermaid code and prefixes from audio
-      const cleanText = text.replace(/```mermaid[\s\S]*?```/g, "").replace(/\[Notes\]|\[Web\]/g, "");
+      // Remove prefixes from audio
+      const cleanText = text.replace(/\[Notes\]|\[Web\]/g, "");
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);
@@ -251,7 +249,6 @@ function AIChatContent() {
             onClick={() => send(p)}
             className="whitespace-nowrap text-[10px] md:text-xs px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-brand-500 hover:text-brand-600 transition-all shadow-sm"
           >
-            {p === "Draw a Flowchart" ? <Palette size={12} className="inline mr-1" /> : null}
             {p}
           </button>
         ))}
@@ -281,18 +278,6 @@ function AIChatContent() {
                 {msg.role === "assistant" ? (
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
-                    components={{
-                      code({ inline, className, children, ...props }: any) {
-                        const match = /language-mermaid/.exec(className || "");
-                        return !inline && match ? (
-                          <Mermaid chart={String(children).replace(/\n$/, "")} />
-                        ) : (
-                          <code className={className} {...props}>
-                            {children}
-                          </code>
-                        );
-                      },
-                    }}
                   >
                     {msg.content}
                   </ReactMarkdown>

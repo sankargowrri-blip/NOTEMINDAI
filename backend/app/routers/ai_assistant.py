@@ -1,4 +1,4 @@
-"""AI Assistant router: chat, summary, simplify, keywords, mind map, flowchart."""
+"""AI Assistant router: chat, summary, simplify, keywords, big questions."""
 from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,12 +33,6 @@ class SimplifyRequest(BaseModel):
     level: str = "school"  # engineering | school | child
 
 class KeywordsRequest(BaseModel):
-    note_id: int
-
-class MindMapRequest(BaseModel):
-    note_id: int
-
-class FlowchartRequest(BaseModel):
     note_id: int
 
 class ExamPredictRequest(BaseModel):
@@ -202,37 +196,6 @@ async def extract_keywords(
     if not text:
         raise HTTPException(400, detail="Note has no text content")
     return await ai_service.extract_keywords(text)
-
-
-# ── Mind Map ──────────────────────────────────────────────────────────────────
-
-@router.post("/mind-map")
-async def mind_map(
-    body: MindMapRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    text = await _get_note_text(body.note_id, current_user, db)
-    if not text:
-        raise HTTPException(400, detail="Note has no text content")
-    return await ai_service.generate_mind_map(text)
-
-
-# ── Flowchart ─────────────────────────────────────────────────────────────────
-
-@router.post("/flowchart")
-async def flowchart(
-    body: FlowchartRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    text = await _get_note_text(body.note_id, current_user, db)
-    if not text:
-        raise HTTPException(400, detail="Note has no text content")
-    result = await ai_service.generate_flowchart(text)
-    if not result.get("code"):
-        raise HTTPException(422, detail="Could not generate a flowchart. The note may not describe a sequential process.")
-    return result
 
 
 # ── Exam Predictor ────────────────────────────────────────────────────────────

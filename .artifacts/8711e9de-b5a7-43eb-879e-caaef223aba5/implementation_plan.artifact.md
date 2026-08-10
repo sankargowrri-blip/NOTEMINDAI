@@ -1,44 +1,54 @@
-# Implementation Plan - Final Stability & Robust Feature Fixes
+# Implementation Plan - NoteMind AI Total Optimization & Reliability Fix
 
-This plan aims to resolve the persistent issues with Note Deletion, Flashcard generation, and Mermaid diagram syntax errors.
+This plan outlines a comprehensive overhaul of NoteMind AI to ensure all features are stable, accurate, and professional, specifically focusing on removing unwanted diagram features and perfecting the quiz/evaluation system.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Cascading Deletion**: I have implemented a "Force Cleanup" strategy. When you delete a note, the system will now manually clean up all related quizzes, attempts, flashcards, and analytics *before* deleting the note. This bypasses any database lock issues on Render.
-> **Silent Diagram Mode**: I have updated the diagram engine to be 100% silent. If a diagram has a syntax error, it will be completely hidden from your chat, showing only the text answer. No more "Syntax error" icons.
-> **Reliable Flashcards**: I've optimized the Flashcard prompts to be simpler and stay under token limits, ensuring they generate even for large notes.
+> **Complete Diagram Removal**: As requested, all diagram, flowchart, and mindmap generation features will be completely removed. Mermaid.js will be uninstalled and its rendering components deleted.
+> **Quiz Scoring Update**: The quiz marking scheme will change to **+1 for correct**, **-1 for wrong**, and **0 for unanswered**. The final score will be `Total Correct - Total Wrong`.
 
 ## Proposed Changes
 
-### 1. Backend: Robust Deletion & Error Tracking
-- **[MODIFY] [routers/notes.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/notes.py)**:
-    - Implement manual cleanup of all related entities (Quizzes, FlashcardSets, etc.) in the `delete_note` endpoint.
-    - Add detailed error logging to identify exactly why a deletion or AI generation fails.
-- **[MODIFY] [routers/flashcards.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/flashcards.py)**:
-    - Add fallback logic if AI returns an empty list.
+### 1. Feature Removal (Diagrams & Flowcharts)
+- **[DELETE] [Mermaid.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/components/Mermaid.tsx)**: Remove the Mermaid rendering component.
+- **[DELETE] [Flowchart.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/components/Flowchart.tsx)**: Remove the legacy flowchart renderer.
+- **[MODIFY] [package.json](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/package.json)**: Remove `mermaid` and `react-flow-renderer` dependencies.
+- **[MODIFY] [ai-chat/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/ai-chat/page.tsx)**: Remove "Draw a Flowchart" quick prompt and Mermaid markdown rendering.
+- **[MODIFY] [notes/[id]/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/notes/[id]/page.tsx)**: Remove Mindmap and Flowchart tabs.
 
-### 2. Frontend: Diagram & UI Polish
-- **[MODIFY] [components/Mermaid.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/components/Mermaid.tsx)**:
-    - Enhanced syntax validator that automatically hides broken diagrams.
-    - Improved label quoting for complex technical terms.
-- **[MODIFY] [ai-chat/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/ai-chat/page.tsx)**:
-    - Optimized auto-scroll to be less intrusive.
-    - Added "Jump to bottom" floating button.
+### 2. AI Assistant Optimization (The "Wise Assistant")
+- **[MODIFY] [ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
+    - **System Prompt**: Rewrite to enforce extreme conciseness and intent-matching (e.g., "Define" returns ONLY a definition).
+    - **No-Diagram Rule**: Explicitly forbid generating Mermaid code or diagrams.
+    - **Hybrid Retrieval**: Ensure it prioritizes notes but falls back to web knowledge intelligently to clear all doubts.
 
-### 3. Backend: Token & Logic Sync
-- **[MODIFY] [services/ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
-    - Reduce context size to **2500 characters** for absolute stability.
-    - Fix `any()` reference bug and ensure all Python built-ins are resolved.
+### 3. Quiz System Overhaul (The "Professional Examiner")
+- **[MODIFY] [routers/quiz.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/quiz.py)**:
+    - **Strict Scorer**: Implement the +1/-1 marking logic.
+    - **Response Format**: Include counts for correct, wrong, and unanswered questions.
+- **[MODIFY] [quiz/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/quiz/page.tsx)**:
+    - **Result Page**: Display a detailed summary: Total, Correct, Wrong, Unanswered, Marks, and Percentage.
+    - **Question Review**: Use Green ✓ (+1) and Red ✗ (-1) indicators. Show correct answers and explanations for failures.
+
+### 4. Flashcards & Translation Stability
+- **[FIX] [routers/flashcards.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/flashcards.py)**: Ensure valid JSON generation from note content only.
+- **[FIX] [routers/translate.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/translate.py)**: Ensure only the translated text is returned without conversational filler.
+
+### 5. Backend Reliability & Security
+- **[FIX] [notes.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/notes.py)**: Fix cascaded deletion to ensure linked data is cleaned up properly.
+- **Ownership**: Verify user ownership for ALL endpoints (Quizzes, Flashcards, History).
 
 ---
 
 ## Verification Plan
 
-### Manual Verification
-1.  **Delete Note**: Verify that notes with previous quizzes can now be deleted without error.
-2.  **Flashcards**: Generate cards for "unit-3" and verify they appear instantly.
-3.  **Diagrams**: Ask for a complex flowchart. Verify no red bomb icons appear even if rendering is slow.
-4.  **Conciseness**: Ask "What is security?". Verify the answer is short and direct.
+### Automated Tests
+- `npm uninstall mermaid react-flow-renderer`
+- Monitor backend logs for evaluation accuracy.
 
-**I am applying these final stabilization fixes now.** 🚀🛠️🎓
+### Manual Verification
+- **Test 1**: Ask "Define Data Security". Verify a single-sentence response.
+- **Test 2**: Take a 10-question quiz. Get 7 right, 2 wrong. Verify score is `7 - 2 = 5 / 10`.
+- **Test 3**: Delete a note. Verify it disappears instantly from the UI and DB.
+- **Test 4**: Translate a sentence to Tamil. Verify no English text remains.

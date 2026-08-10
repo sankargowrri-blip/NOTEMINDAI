@@ -11,10 +11,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import NoteEditor from "@/components/NoteEditor";
-import MindMap from "@/components/MindMap";
-import Flowchart from "@/components/Flowchart";
 
-type TabKey = "text" | "summary" | "simplify" | "keywords" | "mindmap" | "flowchart";
+type TabKey = "text" | "summary" | "simplify" | "keywords";
 
 const SUMMARY_MODES = ["bullet", "50_word", "100_word", "detailed", "revision"];
 const SIMPLIFY_LEVELS = ["school", "child", "engineering"];
@@ -67,12 +65,6 @@ export default function NoteDetailPage() {
       } else if (activeTab === "keywords") {
         res = await aiApi.keywords(noteId);
         setAiResult(JSON.stringify(res.data, null, 2));
-      } else if (activeTab === "mindmap") {
-        res = await aiApi.mindMap(noteId);
-        setAiResult(JSON.stringify(res.data, null, 2));
-      } else if (activeTab === "flowchart") {
-        res = await aiApi.flowchart(noteId);
-        setAiResult(JSON.stringify(res.data, null, 2));
       }
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "AI request failed";
@@ -90,8 +82,6 @@ export default function NoteDetailPage() {
     { key: "summary", label: "Summary", icon: Brain },
     { key: "simplify", label: "Simplify", icon: Wand2 },
     { key: "keywords", label: "Keywords", icon: Key },
-    { key: "mindmap", label: "Mind Map", icon: Map },
-    { key: "flowchart", label: "Flowchart", icon: GitBranch },
   ];
 
   return (
@@ -183,24 +173,12 @@ export default function NoteDetailPage() {
           </div>
         )}
 
-        {(activeTab === "keywords" || activeTab === "mindmap" || activeTab === "flowchart") && (
+        {activeTab === "keywords" && (
           <div className="space-y-4">
             <button onClick={runAI} disabled={aiLoading} className="btn-primary">
               {aiLoading ? <Loader2 className="animate-spin" size={16} /> : <Brain size={16} />}
-              Generate {activeTab === "keywords" ? "Keywords" : activeTab === "mindmap" ? "Mind Map" : "Flowchart"}
+              Generate Keywords
             </button>
-            {aiResult && activeTab === "mindmap" && (() => {
-              try {
-                const data = JSON.parse(aiResult);
-                return <MindMap root={data.root || "Main Topic"} children={data.children || []} />;
-              } catch { return null; }
-            })()}
-            {aiResult && activeTab === "flowchart" && (() => {
-              try {
-                const data = JSON.parse(aiResult);
-                return <Flowchart nodes={data.nodes || []} edges={data.edges || []} />;
-              } catch { return null; }
-            })()}
             {aiResult && activeTab === "keywords" && (() => {
               try {
                 const data = JSON.parse(aiResult);

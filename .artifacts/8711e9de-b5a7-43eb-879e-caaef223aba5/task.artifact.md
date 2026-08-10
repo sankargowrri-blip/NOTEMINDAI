@@ -1,13 +1,22 @@
-# Task List - Final Stability & Feature Fixes
+# Task List - NoteMind AI Total Optimization
 
-- `[x]` Fix Flashcard Generation
-    - `[x]` Update `quiz_service.py` to accept `card_type`
-- `[x]` Fix Note Deletion (Self-Healing)
-    - `[x]` Update `models/quiz.py` with CASCADE
-    - `[x]` Update `models/flashcard.py` with CASCADE
-    - `[x]` Update `db/postgres.py` with auto-repair migrations
-- `[x]` Fix Diagram Syntax
-    - `[x]` Refine Mermaid prompt in `ai_service.py`
-- `[x]` Deploy & Verify
-    - `[x]` Push to GitHub
-    - `[x]` Trigger Render build
+- `[x]` Remove Diagram Dependencies (`mermaid`, `react-flow-renderer`)
+- `[x]` Delete Diagram Components (`Mermaid.tsx`, `Flowchart.tsx`)
+- `[/]` Backend: AI Assistant "Wise Brain" Implementation
+    - `[x]` Update `ai_service.py` (conciseness, no-diagrams)
+    - `[x]` Update `ai_assistant.py` (remove diagram routes)
+- `[/]` Backend: Flashcards & Translation Fixes
+    - `[x]` Update `translate.py` (import fixes, direct translation)
+    - `[ ]` Update `flashcards.py` (import fixes, generation robustness)
+- `[/]` Backend: Quiz System Overhaul
+    - `[x]` Update `quiz.py` (+1/-1 scoring logic)
+    - `[x]` Update `quiz_service.py` (strict formatting)
+- `[/]` Frontend: Remove Diagram UI
+    - `[x]` Update `ai-chat/page.tsx` (remove flowchart prompts)
+    - `[x]` Update `notes/[id]/page.tsx` (remove diagram tabs)
+- `[/]` Frontend: Quiz Result UI & Evaluation
+    - `[x]` Update `quiz/page.tsx` (score display, green/red indicators)
+- `[ ]` Final Verification & Deployment
+    - `[ ]` Test note deletion
+    - `[ ]` Push to GitHub
+    - `[ ]` Trigger Render build

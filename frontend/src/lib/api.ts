@@ -85,10 +85,6 @@ export const aiApi = {
     api.post("/api/ai/simplify", { note_id: noteId, level }),
   keywords: (noteId: number) =>
     api.post("/api/ai/keywords", { note_id: noteId }),
-  mindMap: (noteId: number) =>
-    api.post("/api/ai/mind-map", { note_id: noteId }),
-  flowchart: (noteId: number) =>
-    api.post("/api/ai/flowchart", { note_id: noteId }),
   examPredict: (noteId: number, weakTopics: string[]) =>
     api.post("/api/ai/exam-predict", { note_id: noteId, weak_topics: weakTopics }),
 };

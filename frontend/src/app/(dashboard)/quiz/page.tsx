@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { notesApi, quizApi } from "@/lib/api";
 import toast from "react-hot-toast";
-import { BookOpen, Loader2, ChevronRight, CheckCircle, XCircle, RotateCcw, AlertCircle, FileSpreadsheet, FileText } from "lucide-react";
+import { BookOpen, Loader2, ChevronRight, CheckCircle, XCircle, RotateCcw, AlertCircle, FileSpreadsheet, FileText, MinusCircle } from "lucide-react";
 import clsx from "clsx";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -28,7 +28,10 @@ export default function QuizPage() {
   const [loading, setLoading] = useState(false);
   const [quiz, setQuiz] = useState<{ quiz_id: number; title: string; questions: Question[] } | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [result, setResult] = useState<{ score: number; total: number; percentage: number } | null>(null);
+  const [result, setResult] = useState<{
+      score: number; total: number; percentage: number;
+      correct: number; wrong: number; unanswered: number; max_marks: number;
+  } | null>(null);
 
   const { data: notesData } = useQuery({
     queryKey: ["notes-list"],
@@ -80,7 +83,7 @@ export default function QuizPage() {
       setAnswers({});
       setStep("quiz");
     } catch (e: any) {
-        const msg = e.response?.data?.detail || "AI is currently busy. Please try with fewer questions or a shorter note.";
+        const msg = e.response?.data?.detail || "AI is currently busy. Please try with fewer questions.";
         toast.error(msg);
     } finally {
       setLoading(false);
@@ -104,13 +107,14 @@ export default function QuizPage() {
     const data = quiz.questions.map((q, i) => {
       const ck = getCorrectKey(q);
       const uk = answers[i];
+      const isCorrect = uk && ck && uk === ck;
       return {
         "No": i + 1,
         "Question": q.question,
         "Options": q.options ? Object.entries(q.options).map(([k, v]) => `${k}: ${v}`).join(" | ") : "N/A",
         "Your Answer": uk || "Skipped",
         "Correct Answer": ck || q.answer,
-        "Result": (uk && ck && uk === ck) ? "CORRECT" : "WRONG",
+        "Result": isCorrect ? "CORRECT (+1)" : (uk ? "WRONG (-1)" : "UNANSWERED (0)"),
         "Explanation": q.explanation || ""
       };
     });
@@ -130,23 +134,25 @@ export default function QuizPage() {
     doc.setFontSize(12);
     doc.setTextColor(100);
     doc.text(`Topic: ${quiz.title}`, 14, 30);
-    doc.text(`Score: ${result.score} / ${result.total} (${result.percentage}%)`, 14, 37);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 44);
+    doc.text(`Final Score: ${result.score} / ${result.total}`, 14, 37);
+    doc.text(`Accuracy: ${result.percentage}%`, 14, 44);
+    doc.text(`Correct: ${result.correct} | Wrong: ${result.wrong} | Unanswered: ${result.unanswered}`, 14, 51);
 
     const tableData = quiz.questions.map((q, i) => {
       const ck = getCorrectKey(q);
       const uk = answers[i];
+      const isCorrect = uk && ck && uk === ck;
       return [
         i + 1,
         q.question,
         uk || "-",
         ck || q.answer,
-        (uk && ck && uk === ck) ? "CORRECT" : "WRONG"
+        isCorrect ? "CORRECT" : (uk ? "WRONG" : "SKIPPED")
       ];
     });
 
     autoTable(doc, {
-      startY: 55,
+      startY: 60,
       head: [['#', 'Question', 'Your Choice', 'Correct Answer', 'Status']],
       body: tableData,
       theme: 'striped',
@@ -162,7 +168,7 @@ export default function QuizPage() {
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in px-2">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Generate Quiz</h1>
-        <p className="text-gray-500 text-sm mt-1">Create a quiz from your notes with AI</p>
+        <p className="text-gray-500 text-sm mt-1">Create a quiz from your notes with professional marking (+1/-1)</p>
       </div>
       <div className="card p-6 space-y-5 shadow-lg">
         <div>
@@ -235,80 +241,85 @@ export default function QuizPage() {
 
   if (step === "result" && result && quiz) return (
     <div className="max-w-3xl mx-auto space-y-8 animate-fade-in py-6 px-2">
-      {/* Dynamic Header */}
       <div className="card p-10 text-center space-y-4 shadow-2xl border-t-8 border-t-brand-500">
-        <div className={`w-32 h-32 rounded-full mx-auto flex items-center justify-center text-white text-4xl font-black shadow-lg border-8 border-white/20 ${result.percentage >= 60 ? "bg-green-500" : "bg-red-500"}`}>
-          {result.percentage}%
+        <div className={`w-32 h-32 rounded-full mx-auto flex flex-col items-center justify-center text-white shadow-lg border-8 border-white/20 ${result.score >= (result.total / 2) ? "bg-green-500" : "bg-red-500"}`}>
+            <span className="text-4xl font-black">{result.score}</span>
+            <span className="text-xs font-bold opacity-80">/{result.total} MARKS</span>
         </div>
         <div>
           <h2 className="text-3xl font-black text-gray-900 dark:text-white">Quiz Result</h2>
-          <p className="text-gray-500 mt-2 text-xl font-medium">
-            You got <span className="text-brand-600 dark:text-brand-400 font-bold">{result.score}</span> out of {result.total} correct
-          </p>
+          <div className="flex items-center justify-center gap-6 mt-4">
+              <div className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={18}/> {result.correct} Correct</div>
+              <div className="text-red-600 font-bold flex items-center gap-1"><XCircle size={18}/> {result.wrong} Wrong</div>
+              <div className="text-gray-500 font-bold flex items-center gap-1"><MinusCircle size={18}/> {result.unanswered} Skipped</div>
+          </div>
         </div>
-        {result.percentage >= 60 ? (
-          <div className="text-green-600 font-black bg-green-50 dark:bg-green-950/40 py-3 px-8 rounded-full w-max mx-auto border-2 border-green-500/30 flex items-center gap-2">
-            <CheckCircle /> EXCELLENT PASS!
-          </div>
-        ) : (
-          <div className="text-red-600 font-black bg-red-50 dark:bg-red-950/40 py-3 px-8 rounded-full w-max mx-auto border-2 border-red-500/30 flex items-center gap-2">
-            <XCircle /> KEEP PRACTICING
-          </div>
-        )}
+        <div className="pt-4">
+            <div className="text-brand-600 font-black text-4xl">{result.percentage}%</div>
+            <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mt-1">Accuracy Level</p>
+        </div>
       </div>
 
       <div className="space-y-6">
-        <div className="flex items-center justify-between px-1">
-            <h3 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">Question Analysis</h3>
-            <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Review Mode</span>
-        </div>
+        <h3 className="text-xl font-black text-gray-900 dark:text-white px-1">Detailed Question Review</h3>
 
         {quiz.questions.map((q, i) => {
           const correctKey = getCorrectKey(q);
           const userKey = answers[i];
           const isCorrect = userKey && correctKey && userKey === correctKey;
+          const isWrong = userKey && userKey !== correctKey;
 
           return (
             <div key={i} className={clsx(
-              "card p-8 border-l-[6px] transition-all duration-300 shadow-md",
-              isCorrect ? "border-l-green-500 bg-green-50/10 dark:bg-green-950/5" : "border-l-red-500 bg-red-50/10 dark:bg-red-950/5"
+              "card p-8 border-l-[8px] transition-all shadow-md",
+              isCorrect ? "border-l-green-500 bg-green-50/10" :
+              isWrong ? "border-l-red-500 bg-red-50/10" : "border-l-gray-300"
             )}>
               <div className="flex items-start justify-between gap-6 mb-6">
-                <p className="font-bold text-gray-900 dark:text-white text-xl leading-snug">{i + 1}. {q.question}</p>
-                {isCorrect ? <CheckCircle className="text-green-500 shrink-0 shadow-sm" size={30} /> : <XCircle className="text-red-500 shrink-0 shadow-sm" size={30} />}
+                <div className="space-y-1">
+                    <p className="text-gray-900 dark:text-white text-xl font-bold leading-snug">{i + 1}. {q.question}</p>
+                    <div className="flex items-center gap-2">
+                        {isCorrect && <span className="text-green-600 font-black text-xs uppercase">✓ Correct (+1 Mark)</span>}
+                        {isWrong && <span className="text-red-600 font-black text-xs uppercase">✗ Wrong (-1 Mark)</span>}
+                        {!userKey && <span className="text-gray-400 font-black text-xs uppercase">○ Unanswered (0 Marks)</span>}
+                    </div>
+                </div>
+                {isCorrect ? <CheckCircle className="text-green-500 shrink-0" size={32} /> :
+                 isWrong ? <XCircle className="text-red-500 shrink-0" size={32} /> : null}
               </div>
 
               {q.options ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {Object.entries(q.options).map(([k, v]) => {
                     const isRightAnswer = k === correctKey;
-                    const isUserIncorrectChoice = userKey === k && !isCorrect;
+                    const isUserChoice = userKey === k;
 
                     return (
                       <div key={k} className={clsx(
-                        "p-5 rounded-2xl border-2 text-sm font-bold transition-all flex items-center justify-between gap-3",
-                        isRightAnswer ? "bg-green-100/60 dark:bg-green-900/30 border-green-500 text-green-900 dark:text-green-400 ring-4 ring-green-500/10" :
-                        isUserIncorrectChoice ? "bg-red-100/60 dark:bg-red-900/30 border-red-500 text-red-900 dark:text-red-400" :
-                        "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-400 opacity-50"
+                        "p-5 rounded-2xl border-2 text-sm font-bold transition-all flex items-center justify-between",
+                        isRightAnswer ? "bg-green-100 border-green-500 text-green-900 shadow-sm" :
+                        isUserChoice && !isCorrect ? "bg-red-100 border-red-500 text-red-900" :
+                        "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-400 opacity-60"
                       )}>
                         <span>{k}. {v}</span>
-                        {isRightAnswer && <CheckCircle className="text-green-600 shrink-0" size={18} />}
-                        {isUserIncorrectChoice && <XCircle className="text-red-600 shrink-0" size={18} />}
+                        {isRightAnswer && <CheckCircle className="text-green-600" size={18} />}
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="bg-white dark:bg-black/20 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-800">
-                  <p className="text-sm font-bold mb-1">Your Answer: <span className={isCorrect ? "text-green-600" : "text-red-600"}>{answers[i] || "(Empty)"}</span></p>
-                  {!isCorrect && <p className="text-sm font-bold text-green-600">Correct Answer: {q.answer}</p>}
+                <div className="p-5 rounded-2xl border-2 border-dashed bg-gray-50 dark:bg-black/20">
+                  <p className="text-sm font-bold">Your Answer: <span className={isCorrect ? "text-green-600" : "text-red-600"}>{answers[i] || "(Skipped)"}</span></p>
+                  {!isCorrect && <p className="text-sm font-bold text-green-600 mt-2">Correct Answer: {q.answer}</p>}
                 </div>
               )}
 
-              {q.explanation && (
-                <div className="mt-8 p-5 rounded-2xl bg-brand-50/30 dark:bg-brand-900/5 border border-brand-200 dark:border-brand-800 relative">
-                   <div className="absolute -top-3 left-4 bg-brand-600 text-white text-[10px] font-black px-2 py-1 rounded">AI EXPLANATION</div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-semibold italic">{q.explanation}</p>
+              {(isWrong || !userKey) && (
+                <div className="mt-8 p-6 rounded-2xl bg-brand-50/50 dark:bg-brand-900/10 border-2 border-brand-100 dark:border-brand-800 relative">
+                  <div className="absolute -top-3 left-6 bg-brand-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-sm">STUDY EXPLANATION</div>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-semibold italic">
+                      {isWrong ? `You selected an incorrect option. ${q.explanation}` : `You skipped this question. ${q.explanation}`}
+                  </p>
                 </div>
               )}
             </div>
@@ -316,15 +327,14 @@ export default function QuizPage() {
         })}
       </div>
 
-      {/* Modern Action Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-8 pb-24">
-        <button onClick={() => setStep("config")} className="flex items-center justify-center gap-2 bg-gray-900 text-white dark:bg-white dark:text-black py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all">
-          <RotateCcw size={20} /> TRY AGAIN
+        <button onClick={() => setStep("config")} className="flex items-center justify-center gap-2 bg-gray-900 text-white py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all">
+          <RotateCcw size={20} /> RETAKE QUIZ
         </button>
-        <button onClick={exportToExcel} className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all border-none">
+        <button onClick={exportToExcel} className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all">
           <FileSpreadsheet size={20} /> EXCEL REPORT
         </button>
-        <button onClick={exportToPDF} className="flex items-center justify-center gap-2 bg-brand-600 text-white py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all border-none">
+        <button onClick={exportToPDF} className="flex items-center justify-center gap-2 bg-brand-600 text-white py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all">
           <FileText size={20} /> PDF REPORT
         </button>
       </div>

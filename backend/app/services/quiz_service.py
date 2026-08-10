@@ -11,7 +11,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 def truncate_text(text: str, max_chars: int = 5000) -> str:
-    """Stay strictly within free-tier TPM limits (6000 tokens) by limiting context size."""
+    """Stay strictly within free-tier TPM limits by limiting context size."""
     if not text: return ""
     return text[:max_chars] + "..." if len(text) > max_chars else text
 
@@ -28,8 +28,8 @@ def _chat(prompt: str, max_tokens: int = 3000, temperature: float = 0.8) -> str:
                     {
                         "role": "system", 
                         "content": (
-                            "You are a professional academic examiner. You follow strict formatting rules for quizzes. "
-                            "You generate challenging, accurate, and diverse academic questions."
+                            "You are a professional academic examiner. You follow strict formatting rules for quizzes and flashcards. "
+                            "You generate challenging, accurate, and diverse academic material. No diagrams or Mermaid code."
                         )
                     },
                     {"role": "user", "content": prompt},
@@ -47,7 +47,6 @@ def _chat(prompt: str, max_tokens: int = 3000, temperature: float = 0.8) -> str:
 def generate_quiz(note_text: str, web_context: str = "", question_type: str = "mcq",
                   difficulty: str = "medium", count: int = 10) -> list[dict]:
     
-    # Formatting instructions for different quiz types
     type_rules = {
         "mcq": "Multiple-choice questions with 4 options (A,B,C,D). The 'answer' field MUST be just the LETTER ('A', 'B', 'C', or 'D').",
         "fill_blank": "Fill-in-the-blank questions. The 'question' field MUST include a '___' (underscore dash) as a placeholder for the answer.",
@@ -59,7 +58,6 @@ def generate_quiz(note_text: str, web_context: str = "", question_type: str = "m
 
     session_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=12))
     
-    # Strictly limited context for free-tier stability
     safe_note_text = truncate_text(note_text, max_chars=5000)
     context_block = f"NOTE CONTENT:\n{safe_note_text}\n\n"
     if web_context:
@@ -79,7 +77,6 @@ def generate_quiz(note_text: str, web_context: str = "", question_type: str = "m
     
     raw = _chat(prompt, max_tokens=4000, temperature=0.8)
     try:
-        # Improved parsing to find JSON array even if AI adds intro text
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         if match:
             return json.loads(match.group())
@@ -88,14 +85,28 @@ def generate_quiz(note_text: str, web_context: str = "", question_type: str = "m
     return []
 
 
-def generate_flashcards(note_text: str, count: int = 20) -> list[dict]:
+def generate_flashcards(note_text: str, card_type: str = "standard", count: int = 20) -> list[dict]:
+    """Generates unique flashcards from note content."""
     session_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
     safe_text = truncate_text(note_text, 5000)
+    
+    type_prompts = {
+        "standard": "key terms and high-level concepts",
+        "definition": "precise definitions of technical vocabulary",
+        "formula": "mathematical or scientific formulas and their applications"
+    }
+    focus = type_prompts.get(card_type, "key points")
+
     prompt = (
-        f"Generate {count} unique flashcards. Session ID: {session_id}.\n"
-        "Return a JSON array with 'front' and 'back' fields.\n\n"
+        f"Generate exactly {count} unique flashcards focusing on {focus}.\n"
+        f"Session ID: {session_id}.\n"
+        "Instructions:\n"
+        "1. Return a JSON array of objects.\n"
+        "2. Each object MUST have 'front' and 'back' fields.\n"
+        "3. Focus on unique details from the note below.\n"
+        "4. No diagrams, no Mermaid, no conversational text.\n\n"
         f"NOTE CONTENT:\n{safe_text}\n\n"
-        "Return ONLY JSON."
+        "Return ONLY JSON array."
     )
     
     raw = _chat(prompt, max_tokens=3000, temperature=0.7)

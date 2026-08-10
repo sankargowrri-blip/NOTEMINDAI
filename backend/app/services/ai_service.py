@@ -1,4 +1,4 @@
-"""AI service using Groq. Precision-locked to note text with Diagram support."""
+"""AI service using Groq. Precision-locked to note text (Memory Optimized)."""
 from __future__ import annotations
 import json
 import re
@@ -10,12 +10,12 @@ from typing import List, Dict, Optional
 logger = logging.getLogger(__name__)
 
 def truncate_text(text: str, max_chars: int = 2500) -> str:
-    """Aggressively limit text to stay under 6000 TPM limit (Free Tier)."""
+    """Stay within Groq TPM limits by limiting context size."""
     if not text: return ""
     return text[:max_chars] + "..." if len(text) > max_chars else text
 
 async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Optional[List[Dict]] = None) -> str:
-    """Call Groq using Async client with extreme token optimization."""
+    """Call Groq using Async client for better performance."""
     groq_key = settings.groq_api_key
     if groq_key and groq_key.startswith("gsk_"):
         try:
@@ -24,7 +24,7 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
-                # Truncate history to last 2 messages for extreme safety
+                # Filter out system messages and strictly limit history
                 history = [m for m in messages if m.get("role") != "system"]
                 chat_messages.extend(history[-2:]) 
             chat_messages.append({"role": "user", "content": user})
@@ -39,24 +39,29 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
         except Exception as e:
             logger.error(f"GROQ_ERROR: {str(e)}")
             return f"ERROR: The AI server is very busy ({str(e)}). Please wait 30 seconds."
-    return "AI_UNAVAILABLE: Your Groq API key is missing. Please add GROQ_API_KEY to your Render Dashboard Environment Variables."
+    return "AI_UNAVAILABLE: Your Groq API key is missing."
 
 async def rag_chat(user_id: str, question: str, note_text: str = "", history: List[Dict] = None) -> dict:
     """
-    Enhanced RAG Chat with strict token management and Diagram Support.
+    Enhanced RAG Chat with strict token management and accurate response matching.
     """
     
     is_web = False
     
-    # SYSTEM PROMPT FOR CONCISE EXPLANATIONS & DIAGRAMS
+    # SYSTEM PROMPT FOR CONCISE, INTENT-MATCHING ANSWERS
     system = (
-        "You are NoteMind AI, an expert study assistant. Your goal is to provide SHORT, DIRECT, and EXAM-FRIENDLY answers. "
-        "1. DEFAULT STYLE: Give the direct definition first. Use bullet points for key facts. Avoid long paragraphs. "
+        "You are NoteMind AI, an expert study assistant. Answer questions ACCURATELY and DIRECTLY. "
+        "1. INTENT MATCHING: Understand the user's intent. "
+        "   - 'Define...': Provide ONLY the definition. No extra text. "
+        "   - 'What is...': Provide a direct, concise answer. "
+        "   - 'List...': Provide the requested list as bullet points. "
+        "   - 'Difference between...': Use a comparison table. "
+        "   - 'Explain...': Provide a clear, moderate explanation. "
+        "   - 'Explain in detail...': Provide a comprehensive, structured answer. "
+        "   - 'X mark answer...': Match the length to the mark level (2 marks = very short, 16 marks = long and structured). "
         "2. GROUNDING: Use the provided [NOTE TEXT] first. If information is missing, use [WEB SEARCH]. "
-        "3. DIAGRAMS: ONLY generate a Mermaid diagram if the user EXPLICITLY asks for one (e.g., 'Draw a flowchart'). "
-        "If requested, use valid Mermaid syntax inside triple backticks: ```mermaid ... ```. "
-        "IMPORTANT: Always wrap node labels in double quotes: id[\"Label text\"]. "
-        "4. TONE: Prefix answers with [Notes] or [Web]. Keep it simple for students."
+        "3. NO DIAGRAMS: Do NOT generate Mermaid code, flowcharts, or diagrams. "
+        "4. TONE: Professional, educational, and extremely concise by default. Do not add unnecessary filler."
     )
     
     user_prompt = ""
@@ -66,10 +71,9 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     else:
         is_web = True
     
-    # Internet Search Fallback
+    # Internet Search Fallback for specific keywords
     should_search = is_web
     if not should_search:
-        # Check for keywords that trigger web search - using a safe way to avoid linter issues with 'any'
         keywords = ["latest", "recent", "who is", "what is", "news", "today"]
         question_lower = question.lower()
         for word in keywords:
@@ -94,35 +98,39 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     }
 
 async def generate_summary(text: str, mode: str = "bullet") -> str:
-    system = "You are a professional note summarizer."
+    system = "You are a professional note summarizer. Give a concise summary without extra text."
     safe_text = truncate_text(text, 2500)
     prompt = f"Summarize this text as {mode}: \n\n{safe_text}"
     return await _chat(system, prompt)
 
 async def simplify_note(text: str, level: str = "school") -> str:
-    system = f"Explain for {level} student."
+    system = f"Explain this text like I am a {level} student. Be direct and simple."
     safe_text = truncate_text(text, 2500)
-    return await _chat(system, safe_text)
+    prompt = f"Text to simplify:\n\n{safe_text}"
+    return await _chat(system, prompt)
 
 async def extract_keywords(text: str) -> dict:
-    system = "Return JSON ONLY: {\"keywords\":[], \"definitions\":[]}"
+    system = "Return JSON ONLY: {\"keywords\":[], \"definitions\":[]}. Extract only from text."
     safe_text = truncate_text(text, 2500)
     raw = await _chat(system, safe_text)
     try:
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
-            # Safely parse JSON
             return json.loads(match.group())
         return {"keywords":[], "definitions":[]}
     except Exception: 
         return {"keywords":[], "definitions":[]}
 
 async def translate_note(text: str, target_language: str) -> str:
+    system = f"Translate the following text to {target_language}. Return ONLY the translated text. No explanation."
     safe_text = truncate_text(text, 2000)
-    return await _chat(f"Translate to {target_language}.", safe_text)
+    return await _chat(system, safe_text)
 
 async def generate_big_questions(text: str) -> List[Dict]:
-    system = "Generate 3 long questions. Return JSON list: [{\"question\":\"...\",\"marks\":15,\"outline\":[...]}]"
+    system = (
+        "Generate 3 university-style long questions (10-16 marks) based on the notes. "
+        "Return as JSON list: [{\"question\":\"...\",\"marks\":15,\"outline\":[...]}]"
+    )
     safe_text = truncate_text(text, 2500)
     raw = await _chat(system, safe_text)
     try:

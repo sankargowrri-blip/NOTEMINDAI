@@ -1,4 +1,4 @@
-"""Quiz generation and attempt router with randomized variety logic."""
+"""Quiz generation and evaluation router (Strict Scorer)."""
 from __future__ import annotations
 import json
 import re
@@ -18,7 +18,7 @@ from app.services.quiz_service import generate_quiz
 from app.services.search_tool import search_tool
 
 router = APIRouter()
-logger = logging.getLogger("notemind")
+logger = logging.getLogger("notemind.quiz")
 
 
 class QuizGenerateRequest(BaseModel):
@@ -140,25 +140,35 @@ async def submit_quiz(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Quiz).where(Quiz.id == body.quiz_id))
+    result = await db.execute(select(Quiz).where(Quiz.id == body.quiz_id, Quiz.owner_id == current_user.id))
     quiz = result.scalar_one_or_none()
     if not quiz:
         raise HTTPException(404, detail="Quiz not found")
 
-    score = 0
+    correct_count = 0
+    wrong_count = 0
+    unanswered_count = 0
+    
     for i, q in enumerate(quiz.questions):
+        user_ans = ""
         if i < len(body.answers):
             user_ans = body.answers[i].get("answer", "")
-            correct_ans = q.get("answer", "")
             
-            if _smart_match(user_ans, correct_ans, q.get("options")):
-                score += 1
+        if not user_ans:
+            unanswered_count += 1
+        elif _smart_match(user_ans, q.get("answer", ""), q.get("options")):
+            correct_count += 1
+        else:
+            wrong_count += 1
 
+    # MARKING SCHEME: +1 for correct, -1 for wrong
+    final_marks = correct_count - wrong_count
+    
     attempt = QuizAttempt(
         quiz_id=quiz.id,
         user_id=current_user.id,
         note_id=quiz.note_id,
-        score=score,
+        score=final_marks,
         total=len(quiz.questions),
         answers=body.answers,
     )
@@ -166,7 +176,11 @@ async def submit_quiz(
     await db.commit()
     
     return {
-        "score": score,
+        "score": final_marks,
+        "max_marks": len(quiz.questions),
         "total": len(quiz.questions),
-        "percentage": round((score / len(quiz.questions)) * 100, 1) if quiz.questions else 0,
+        "correct": correct_count,
+        "wrong": wrong_count,
+        "unanswered": unanswered_count,
+        "percentage": round((correct_count / len(quiz.questions)) * 100, 1) if quiz.questions else 0,
     }
