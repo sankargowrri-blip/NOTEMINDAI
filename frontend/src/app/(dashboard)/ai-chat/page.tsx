@@ -387,7 +387,7 @@ function AIChatContent() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            placeholder={isListening ? "Listening..." : "Ask about your notes or the web..."}
+            placeholder={isListening ? "Listening..." : "Ask me anything (V2 Wise Mode)..."}
             className="flex-1 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-gray-100 text-sm md:text-base py-2 px-1"
             disabled={loading}
           />
