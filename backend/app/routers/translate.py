@@ -41,7 +41,9 @@ async def translate(
         raise HTTPException(status_code=400, detail=f"Unsupported language code: {body.target_language}")
     
     # Verify ownership
-    r = await db.execute(select(Note).where(Note.id == body.note_id, Note.owner_id == current_user.id))
+    r = await db.execute(
+        select(Note).where(Note.id == body.note_id, Note.owner_id == current_user.id)
+    )
     note = r.scalar_one_or_none()
     
     if not note:

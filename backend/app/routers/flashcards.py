@@ -1,4 +1,4 @@
-"""Flashcard generation router."""
+"""Flashcard generation router with robustness fixes."""
 from __future__ import annotations
 import logging
 from fastapi import APIRouter, Depends, HTTPException
@@ -36,7 +36,10 @@ async def create_flashcards(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await db.execute(select(Note).where(Note.id == body.note_id, Note.owner_id == current_user.id))
+        # 1. Fetch note with ownership check
+        result = await db.execute(
+            select(Note).where(Note.id == body.note_id, Note.owner_id == current_user.id)
+        )
         note = result.scalar_one_or_none()
         if not note:
             raise HTTPException(404, detail="Note not found")
@@ -45,16 +48,17 @@ async def create_flashcards(
         if not text.strip():
             raise HTTPException(400, detail="Note has no readable text for study material.")
 
+        # 2. Call AI with retry fallback
         cards = generate_flashcards(text, body.card_type, body.count)
         
-        if not cards:
-            if body.card_type != "standard":
-                logger.info("Retrying flashcard generation with 'standard' type...")
-                cards = generate_flashcards(text, "standard", body.count)
+        if not cards and body.card_type != "standard":
+            logger.info("Retrying flashcard generation with 'standard' type...")
+            cards = generate_flashcards(text, "standard", body.count)
 
         if not cards:
-            raise HTTPException(422, detail="Unable to generate flashcards. Please try again with a different note.")
+            raise HTTPException(422, detail="Unable to generate flashcards. Please try again with a shorter note.")
 
+        # 3. Save to database
         fset = FlashcardSet(
             note_id=body.note_id,
             owner_id=current_user.id,
@@ -65,12 +69,13 @@ async def create_flashcards(
         db.add(fset)
         await db.commit()
         await db.refresh(fset)
+        
         return {"set_id": fset.id, "title": fset.title, "cards": fset.cards, "count": len(cards)}
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"FLASHCARD_GEN_FAILED: {str(e)}")
-        raise HTTPException(500, detail=f"Server error during generation: {str(e)}")
+        raise HTTPException(500, detail="Unable to generate flashcards. Please try again later.")
 
 
 @router.get("/{set_id}")
@@ -79,7 +84,9 @@ async def get_flashcard_set(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(FlashcardSet).where(FlashcardSet.id == set_id, FlashcardSet.owner_id == current_user.id))
+    result = await db.execute(
+        select(FlashcardSet).where(FlashcardSet.id == set_id, FlashcardSet.owner_id == current_user.id)
+    )
     fset = result.scalar_one_or_none()
     if not fset:
         raise HTTPException(404, detail="Flashcard set not found")
@@ -92,6 +99,13 @@ async def record_recall(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Verify set ownership
+    result = await db.execute(
+        select(FlashcardSet).where(FlashcardSet.id == body.set_id, FlashcardSet.owner_id == current_user.id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(403, detail="You do not own this flashcard set.")
+
     recall = FlashcardRecall(
         set_id=body.set_id,
         user_id=current_user.id,

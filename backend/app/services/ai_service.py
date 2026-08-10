@@ -132,7 +132,7 @@ async def generate_big_questions(text: str) -> List[Dict]:
         "Return as JSON list: [{\"question\":\"...\",\"marks\":15,\"outline\":[...]}]"
     )
     safe_text = truncate_text(text, 2500)
-    raw = await _chat(system, safe_text)
+    raw = await _chat(system, user=f"Notes:\n\n{safe_text}")
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         if match:
