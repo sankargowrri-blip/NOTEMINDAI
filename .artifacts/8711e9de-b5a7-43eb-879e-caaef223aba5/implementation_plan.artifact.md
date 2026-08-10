@@ -1,38 +1,40 @@
-# Implementation Plan - Ultimate AI Stability & Silent Diagram Fix
+# Implementation Plan - Final Note Deletion & Cleanup Fix
 
-The goal is to permanently resolve the "Request too large" (Error 413) and hide the "Syntax error in text" messages that appear when diagrams fail.
+The goal is to resolve the "Failed to delete note" error by ensuring all dependencies (linked data and files) are automatically cleaned up when a note is removed.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Extreme Token Optimization**: To stop the "AI is busy" error for good, I am reducing the context even further. I will now send the most relevant **3000 characters** (approx 750 tokens) of your note. This ensures that even with chat history, we stay well below the 6000 token limit.
-> **Silent Diagrams**: I am updating the diagram engine to be "invisible" if it fails. Instead of showing a big "Syntax error" with a bomb icon, it will simply show the explanation text. You will only see a diagram if it is 100% perfect.
+> **Database Self-Healing**: I am adding a "CASCADE" rule to all study analytics. This means when you delete a note, your study sessions and weak topics for that note will be safely deleted automatically.
+> **Storage Cleanup**: I am updating the system to physically delete the original and enhanced files from the server's hard drive or S3 storage when a note is removed. This saves you space and keeps your account clean.
 
 ## Proposed Changes
 
-### 1. Backend: Aggressive Token Management
-- **[MODIFY] [services/ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
-    - Reduce `truncate_text` limit to **3000 characters**.
-    - Reduce chat history to the **last 2 messages** only.
-    - This creates a massive "buffer" so you never hit the 6000 TPM limit again.
+### 1. Database: Integrity Rules
+- **[MODIFY] [models/analytics.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/models/analytics.py)**:
+    - Add `ondelete="CASCADE"` to `StudySession` and `WeakTopic` foreign keys.
+- **[MODIFY] [db/postgres.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/db/postgres.py)**:
+    - Update the auto-migration script to apply these CASCADE rules to your live database on Render.
 
-### 2. Frontend: Zero-Error Diagram Rendering
-- **[MODIFY] [components/Mermaid.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/components/Mermaid.tsx)**:
-    - Implement a **Syntax Pre-Check**: The app will now check the diagram code *before* trying to draw it.
-    - If the code is invalid, the component will return `null` (completely hidden).
-    - This eliminates the "Syntax error in text" messages from your screen.
+### 2. Services: Storage Disposal
+- **[MODIFY] [services/storage_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/storage_service.py)**:
+    - Add a `delete_file` function to securely remove files from local storage or AWS S3.
 
-### 3. Frontend: Scroll & Layout Polish
-- **[MODIFY] [ai-chat/page.tsx](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/frontend/src/app/(dashboard)/ai-chat/page.tsx)**:
-    - Optimize the "Auto-Scroll" behavior to be smoother when diagrams are being processed.
+### 3. Router: Unified Deletion
+- **[MODIFY] [routers/notes.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/notes.py)**:
+    - Update the `delete_note` endpoint to perform a "Triple Cleanup":
+        1.  Delete the main database record (triggers CASCADE for Quizzes/Analytics).
+        2.  Delete the AI data from MongoDB.
+        3.  Delete the physical files from storage.
 
 ---
 
 ## Verification Plan
 
 ### Manual Verification
-- **Limit Test**: Ask a question about a 100-page PDF. Verify it answers instantly without Error 413.
-- **Diagram Silence Test**: Intentionally ask for a "broken diagram". Verify that the text answer appears but NO red error boxes appear at the bottom.
-- **Scroll Test**: Verify the chat doesn't "jump" uncomfortably when the AI responds.
+1.  **Deletion Test**: Upload a note, generate a quiz, and start a study session.
+2.  **Trigger**: Delete the note from "My Notes".
+3.  **Success**: Verify the note disappears instantly without the "Failed to delete" toast.
+4.  **Backend Check**: Verify that checking Render logs shows `DB_LOG: Cleanup success`.
 
-**I am applying these "Silence & Stability" fixes now to make your experience smooth and error-free.** 🚀🎓✨
+**I am applying these final stabilization fixes now. Shall I proceed?** 🚀🛠️🎓
