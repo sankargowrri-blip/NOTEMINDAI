@@ -7,7 +7,6 @@ mermaid.initialize({
   theme: "default",
   securityLevel: "loose",
   fontFamily: "Inter",
-  // Suppress default error UI (the bomb icon)
   suppressError: true,
 });
 
@@ -25,34 +24,30 @@ export default function Mermaid({ chart }: { chart: string }) {
         setError(false);
         let cleanChart = chart.trim();
 
-        const lines = cleanChart.split('\n');
+        // Find valid start
         const validStartKeywords = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'journey', 'gantt', 'pie', 'quadrantChart', 'mindmap', 'timeline', 'gitGraph'];
+        const lines = cleanChart.split('\n');
+        const startIdx = lines.findIndex(l => validStartKeywords.some(k => l.trim().startsWith(k)));
 
-        const firstValidLineIndex = lines.findIndex(line =>
-          validStartKeywords.some(keyword => line.trim().startsWith(keyword))
-        );
+        if (startIdx === -1) return;
+        cleanChart = lines.slice(startIdx).join('\n');
 
-        if (firstValidLineIndex === -1) return;
-        cleanChart = lines.slice(firstValidLineIndex).join('\n');
-
-        // Auto-fix labels
+        // Fix syntax (Quotes)
         cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\(([^"]+?)\)/g, '$1("$2")');
         cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\[([^"]+?)\]/g, '$1["$2"]');
         cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\{([^"]+?)\}/g, '$1{"$2"}');
 
-        // Syntax Pre-check
+        // Safety Pre-check
         try {
             await mermaid.parse(cleanChart);
         } catch (e) {
-            console.warn("Mermaid syntax check failed - skipping render.");
             setError(true);
             return;
         }
 
-        const { svg } = await mermaid.render(safeId, cleanChart);
-        setSvg(svg);
+        const { svg: renderedSvg } = await mermaid.render(safeId, cleanChart);
+        setSvg(renderedSvg);
       } catch (err) {
-        console.error("Mermaid final render failed:", err);
         setError(true);
       }
     };
@@ -60,8 +55,7 @@ export default function Mermaid({ chart }: { chart: string }) {
     renderChart();
   }, [chart, safeId]);
 
-  // If there is an error, we return null to completely HIDE the broken diagram.
-  // This prevents the "Syntax error" bomb icon from appearing.
+  // HIDE broken diagrams to keep UI clean
   if (error || !svg) return null;
 
   return (
