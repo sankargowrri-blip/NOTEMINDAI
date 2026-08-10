@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { aiApi, notesApi } from "@/lib/api";
 import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark, RefreshCw, Palette } from "lucide-react";
@@ -41,8 +41,23 @@ function AIChatContent() {
   const [notes, setNotes] = useState<any[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<number | null>(urlNoteId ? Number(urlNoteId) : null);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const recognition = useRef<any>(null);
+
+  // Auto-scroll logic: Only scroll if user is already at the bottom
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const isAtBottom = scrollHeight - scrollTop <= clientHeight + 100;
+      if (isAtBottom) {
+        scrollRef.current.scrollTo({ top: scrollHeight, behavior: "smooth" });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, loading, scrollToBottom]);
 
   useEffect(() => {
     const saved = localStorage.getItem("ai_chat_muted");
@@ -103,10 +118,6 @@ function AIChatContent() {
       recognition.current.onend = () => setIsListening(false);
     }
   }, []);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   const speak = (text: string) => {
     if (isMuted || typeof window === "undefined" || !window.speechSynthesis) return;
@@ -234,7 +245,10 @@ function AIChatContent() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-6 pb-4 scroll-smooth pr-1">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto space-y-6 pb-4 scroll-smooth pr-1"
+      >
         {messages.map((msg, i) => (
           <div key={i} className={clsx("flex gap-3", msg.role === "user" ? "flex-row-reverse" : "")}>
             <div className={clsx(
@@ -323,7 +337,6 @@ function AIChatContent() {
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
       {/* Input */}

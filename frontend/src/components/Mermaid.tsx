@@ -14,6 +14,7 @@ export default function Mermaid({ chart }: { chart: string }) {
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<boolean>(false);
   const id = useId();
+  // Safe ID for SVG (no special characters and unique per render)
   const safeId = `mermaid-${id.replace(/:/g, "")}-${Math.floor(Math.random() * 10000)}`;
 
   useEffect(() => {
@@ -33,9 +34,15 @@ export default function Mermaid({ chart }: { chart: string }) {
         cleanChart = lines.slice(startIdx).join('\n');
 
         // Fix syntax (Quotes)
-        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\(([^"]+?)\)/g, '$1("$2")');
-        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\[([^"]+?)\]/g, '$1["$2"]');
-        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\{([^"]+?)\}/g, '$1{"$2"}');
+        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\(([^"]+?)\)/g, (match, p1, p2) => {
+            return `${p1}("${p2.replace(/"/g, "'")}")`;
+        });
+        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\[([^"]+?)\]/g, (match, p1, p2) => {
+            return `${p1}["${p2.replace(/"/g, "'")}"]`;
+        });
+        cleanChart = cleanChart.replace(/([a-zA-Z0-9_-]+)\{([^"]+?)\}/g, (match, p1, p2) => {
+            return `${p1}{"${p2.replace(/"/g, "'")}"}`;
+        });
 
         // Safety Pre-check
         try {
@@ -55,12 +62,13 @@ export default function Mermaid({ chart }: { chart: string }) {
     renderChart();
   }, [chart, safeId]);
 
-  // HIDE broken diagrams to keep UI clean
+  // If there is an error, we return null to completely HIDE the broken diagram.
+  // This prevents the "Syntax error" bomb icon from appearing.
   if (error || !svg) return null;
 
   return (
     <div
-      className="mermaid-container flex justify-center py-4 bg-white dark:bg-gray-800 rounded-xl my-2 shadow-sm overflow-x-auto"
+      className="mermaid-container flex justify-center py-4 bg-white dark:bg-gray-800 rounded-xl my-2 shadow-sm overflow-x-auto transition-all duration-300"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );

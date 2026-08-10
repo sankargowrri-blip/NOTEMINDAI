@@ -9,13 +9,13 @@ from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-def truncate_text(text: str, max_chars: int = 4000) -> str:
-    """Limit text to stay under Groq TPM limits (Free Tier)."""
+def truncate_text(text: str, max_chars: int = 2500) -> str:
+    """Aggressively limit text to stay under 6000 TPM limit (Free Tier)."""
     if not text: return ""
     return text[:max_chars] + "..." if len(text) > max_chars else text
 
 async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Optional[List[Dict]] = None) -> str:
-    """Call Groq using Async client with optimized token usage."""
+    """Call Groq using Async client with extreme token optimization."""
     groq_key = settings.groq_api_key
     if groq_key and groq_key.startswith("gsk_"):
         try:
@@ -24,9 +24,9 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
-                # Filter out system messages and strictly limit history
+                # Truncate history to last 2 messages for extreme safety
                 history = [m for m in messages if m.get("role") != "system"]
-                chat_messages.extend(history[-2:]) # Only last 2 for extreme safety
+                chat_messages.extend(history[-2:]) 
             chat_messages.append({"role": "user", "content": user})
             
             resp = await client.chat.completions.create(
@@ -39,11 +39,11 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
         except Exception as e:
             logger.error(f"GROQ_ERROR: {str(e)}")
             return f"ERROR: The AI server is very busy ({str(e)}). Please wait 30 seconds."
-    return "AI_UNAVAILABLE: Groq Key missing."
+    return "AI_UNAVAILABLE: Your Groq API key is missing. Please add GROQ_API_KEY to your Render Dashboard Environment Variables."
 
 async def rag_chat(user_id: str, question: str, note_text: str = "", history: List[Dict] = None) -> dict:
     """
-    Enhanced RAG Chat with strict token management.
+    Enhanced RAG Chat with extreme token management.
     """
     is_web = False
     system = (
@@ -56,7 +56,7 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     
     user_prompt = ""
     if note_text and len(note_text.strip()) > 50:
-        safe_text = truncate_text(note_text, max_chars=4000)
+        safe_text = truncate_text(note_text, max_chars=2500)
         user_prompt += f"NOTE TEXT:\n{safe_text}\n\n"
     else:
         is_web = True
@@ -71,7 +71,9 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     if should_search:
         web_results = await search_tool.search(question)
         if web_results:
-            user_prompt += f"WEB SEARCH RESULTS:\n{json.dumps(web_results)}\n\n"
+            # Truncate web results to save tokens
+            web_str = truncate_text(json.dumps(web_results), max_chars=1000)
+            user_prompt += f"WEB SEARCH RESULTS:\n{web_str}\n\n"
             is_web = True
 
     user_prompt += f"QUESTION: {question}"
@@ -85,18 +87,18 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
 
 async def generate_summary(text: str, mode: str = "bullet") -> str:
     system = "Summarize note content."
-    safe_text = truncate_text(text, 4000)
+    safe_text = truncate_text(text, 2500)
     prompt = f"Summarize as {mode}: \n\n{safe_text}"
     return await _chat(system, prompt)
 
 async def simplify_note(text: str, level: str = "school") -> str:
     system = f"Explain for {level} student."
-    safe_text = truncate_text(text, 4000)
+    safe_text = truncate_text(text, 2500)
     return await _chat(system, safe_text)
 
 async def extract_keywords(text: str) -> dict:
     system = "Return JSON ONLY: {\"keywords\":[], \"definitions\":[]}"
-    safe_text = truncate_text(text, 4000)
+    safe_text = truncate_text(text, 2500)
     raw = await _chat(system, safe_text)
     try:
         match = re.search(r"\{.*\}", raw, re.DOTALL)
@@ -104,14 +106,14 @@ async def extract_keywords(text: str) -> dict:
     except: return {"keywords":[], "definitions":[]}
 
 async def translate_note(text: str, target_language: str) -> str:
-    safe_text = truncate_text(text, 3000)
+    safe_text = truncate_text(text, 2000)
     return await _chat(f"Translate to {target_language}.", safe_text)
 
 async def generate_big_questions(text: str) -> List[Dict]:
     system = "Generate 3 long questions. Return JSON list: [{\"question\":\"...\",\"marks\":15,\"outline\":[...]}]"
-    safe_text = truncate_text(text, 4000)
+    safe_text = truncate_text(text, 2500)
     raw = await _chat(system, safe_text)
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         return json.loads(match.group()) if match else []
-    except: return []
+    except Exception: return []
