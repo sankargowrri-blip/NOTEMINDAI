@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 import os
 import time
 import logging
+import builtins
 
 from app.config import settings
 from app.db.postgres import init_db, get_db
@@ -48,15 +49,14 @@ async def lifespan(app: FastAPI):
 
     await init_db()
     
-    # One-time background repair for old notes (page_count fix)
+    # Background repair for notes (Fix page_count and truncated text)
     from app.models.note import Note
     from sqlalchemy import select
     import fitz
-    import os
-    import builtins
     
     async def fix_old_notes():
         async for db in get_db():
+            # 1. Correct Page Counts
             result = await db.execute(select(Note).where(Note.page_count == 1))
             notes = result.scalars().all()
             for note in notes:
@@ -65,12 +65,15 @@ async def lifespan(app: FastAPI):
                     path = os.path.join(settings.local_upload_dir, rel)
                     if os.path.exists(path):
                         try:
-                            doc = fitz.open(path)
-                            if builtins.len(doc) > 1:
-                                logging.info(f"AUTO_FIX: Updating page count for note {note.id}")
-                                note.page_count = builtins.len(doc)
-                                # Re-extract if text was likely truncated
-                                if builtins.len(note.refined_text or "") < 2000:
+                            doc = fitz.open("pdf", path)
+                            real_count = doc.page_count
+                            if real_count > 1:
+                                logging.info(f"FIX: Updating page count for note {note.id} to {real_count}")
+                                note.page_count = real_count
+                                # 2. Re-extract if text was truncated (Check for multi-page docs with single-page text)
+                                current_text = note.refined_text or ""
+                                if builtins.len(current_text) < (real_count * 300):
+                                    logging.info(f"FIX: Re-extracting full text from {real_count} pages for note {note.id}")
                                     note.refined_text = "\n\n".join([p.get_text("text") for p in doc])
                             doc.close()
                         except: pass

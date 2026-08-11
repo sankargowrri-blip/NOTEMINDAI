@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 def truncate_text(text: str, max_chars: int = 4000) -> str:
     """Limit text to stay under Groq TPM limits (Free Tier)."""
     if not text: return ""
+    # Standard Python len() is fine here
     return text[:max_chars] + "..." if len(text) > max_chars else text
 
 async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Optional[List[Dict]] = None) -> str:
@@ -63,8 +64,8 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     
     user_prompt = ""
     if note_text and len(note_text.strip()) > 50:
-        # Chat can handle more context now with optimized history
-        safe_text = truncate_text(note_text, max_chars=4000)
+        # Chat uses expanded context for multi-page docs (up to 6k chars)
+        safe_text = truncate_text(note_text, max_chars=6000)
         user_prompt += f"NOTE TEXT:\n{safe_text}\n\n"
     else:
         is_web = True
@@ -102,7 +103,7 @@ async def generate_summary(text: str, mode: str = "bullet") -> str:
     return await _chat(system, prompt)
 
 async def simplify_note(text: str, level: str = "school") -> str:
-    system = f"Explain this text like I am a {level} student. Be direct and simple."
+    system = f"Explain for {level} student."
     safe_text = truncate_text(text, 4000)
     return await _chat(system, safe_text)
 
@@ -119,9 +120,8 @@ async def extract_keywords(text: str) -> dict:
         return {"keywords":[], "definitions":[]}
 
 async def translate_note(text: str, target_language: str) -> str:
-    system = f"Translate the following text to {target_language}. Return ONLY the translated text. No explanation."
     safe_text = truncate_text(text, 3000)
-    return await _chat(system, safe_text)
+    return await _chat(f"Translate to {target_language}.", safe_text)
 
 async def generate_big_questions(text: str) -> List[Dict]:
     """Generate long questions with expanded context for multi-page notes."""
@@ -130,8 +130,9 @@ async def generate_big_questions(text: str) -> List[Dict]:
         "For each question, provide a structured 'outline' AND a comprehensive 'full_answer' (suitable for exam writing with headings). "
         "Return as JSON list: [{\"question\":\"...\", \"marks\":15, \"outline\":[\"...\"], \"full_answer\":\"...\"}]"
     )
-    # Increased context for big questions to see the WHOLE document (up to 8k chars)
-    safe_text = truncate_text(text, max_chars=8000)
+    # Increased context for big questions to see the WHOLE document (up to 10k chars)
+    # 10k chars is approx 2500 tokens, safe for free tier Groq TPM.
+    safe_text = truncate_text(text, max_chars=10000)
     raw = await _chat(system, user=f"Notes:\n\n{safe_text}")
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)

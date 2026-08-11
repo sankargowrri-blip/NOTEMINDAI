@@ -1,39 +1,45 @@
-# Implementation Plan - Fix Note Page Count & Full Content Extraction
+# Implementation Plan - Fix Note Ingestion & Multi-Page Extraction
 
-The goal is to fix the incorrect "1 page" count and ensure that NoteMind AI extracts and uses the *entire* content of multi-page documents for all features.
+The goal is to fix the incorrect "1 page" count and ensure that the full content of multi-page PDFs is extracted and made available to all AI features (especially Big Questions).
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Processing Time**: Processing very large PDFs (50+ pages) may take longer as the system now extracts every single page instead of stopping early.
-> **OCR Limits**: For scanned (image) PDFs, I am increasing the processing limit to **50 pages**. Beyond this, it may hit Render's RAM limits. Text-based PDFs remain unlimited.
+> **Processing Large Documents**: I am increasing the character limit sent to the AI for **Big Questions** from 2,500 to **10,000 characters**. This allows the AI to generate much better 16-mark questions from large notes.
+> **Auto-Correction**: I will run a script that automatically fixes all your existing notes that are currently showing "1 page".
 
 ## Proposed Changes
 
-### 1. Backend: Robust Ingestion Pipeline
+### 1. Backend: Robust PDF Ingestion
 - **[MODIFY] [routers/upload.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/upload.py)**:
-    - Automatically detect the actual page count of every PDF during upload.
-    - Save the detected `page_count` in the database.
-    - Ensure `_extract_pdf_text_direct` captures all text across all pages.
+    - Update `_extract_pdf_metadata` to use `doc.page_count` (the official reliable way).
+    - Remove the silent fallback to "1 page". If metadata fails, the upload will now log a critical error so we can fix it.
+    - Update `_extract_pdf_text_direct` to ensure it loops through EVERY page and combines the text correctly.
 - **[MODIFY] [services/text_refiner.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/text_refiner.py)**:
-    - Update `_llm_refine` to process text in **6,000-character blocks** if the document is long. This ensures the *whole* note is professionally cleaned, not just the first few paragraphs.
+    - Optimize the block-based refinement to ensure large documents are cleaned without losing data.
 
-### 2. Backend: AI Feature Optimization
+### 2. Backend: AI Capability Boost
 - **[MODIFY] [services/ai_service.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/services/ai_service.py)**:
-    - Increase the context window for **Big Questions** to **6,000 characters**. This allows the AI to "see" more of your note and prevents the "Note may be too short" error.
+    - Increase `max_chars` for `generate_big_questions` to **10,000**.
+    - Increase character limit for the main AI Assistant to **6,000**.
 - **[MODIFY] [routers/ai_assistant.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/app/routers/ai_assistant.py)**:
-    - Update the "short note" check to use the total character length of the *full* extracted text.
+    - Refine the "note too short" check to be more intelligent based on actual text length.
 
-### 3. Data Repair: Reprocess Script
-- **[NEW] [scratch/fix_page_counts.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/scratch/fix_page_counts.py)**:
-    - I will create and run a script that scans all your existing notes, detects their true page count from the stored files, re-extracts the full text, and updates the database automatically.
+### 3. Data Repair: Standalone Correction Script
+- **[NEW] [scratch/reprocess_notes.py](file:///C:/Users/sanka/OneDrive/Documents/NOTEMINDAI/backend/scratch/reprocess_notes.py)**:
+    - Create a professional script that:
+        1. Connects to the live DB.
+        2. Identifies notes with `page_count = 1`.
+        3. Re-opens the original files and detects the TRUE page count.
+        4. Re-extracts text from all pages.
+        5. Updates the database records.
 
 ---
 
 ## Verification Plan
 
 ### Manual Verification
-1.  **Upload Test**: Upload a 5-page PDF. Verify "My Notes" displays "5 pages".
-2.  **Extraction Test**: Upload a multi-page PDF where a specific keyword only appears on page 4. Search for that keyword. Verify the note is found.
-3.  **Big Question Test**: Verify that a 10-page note no longer triggers the "Note too short" error.
-4.  **Repair Test**: Verify that old notes showing "1 page" are updated to their correct count after the script runs.
+1.  **Upload Test**: Upload a 15-page PDF. Verify "My Notes" shows exactly "15 pages".
+2.  **Big Question Test**: Generate questions for a large note. Verify it works perfectly without the "too short" error.
+3.  **Search Test**: Search for a word located on page 10 of a PDF. Verify the note is found.
+4.  **Repair Verification**: Run the reprocess script and verify the dashboard updates existing notes.

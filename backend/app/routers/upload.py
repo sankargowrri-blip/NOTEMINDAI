@@ -25,43 +25,52 @@ ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "application/pdf"}
 def _extract_pdf_metadata(pdf_bytes: bytes) -> typing.Dict[str, typing.Any]:
     """Extract page count and other metadata from PDF."""
     try:
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        # Open PDF from bytes
+        doc = fitz.open("pdf", pdf_bytes)
+        count = doc.page_count
+        meta = doc.metadata
+        doc.close()
         return {
-            "page_count": len(doc),
-            "metadata": doc.metadata
+            "page_count": count,
+            "metadata": meta
         }
     except Exception as e:
-        logger.error(f"PDF Metadata extraction failed: {e}")
+        logger.error(f"CRITICAL: PDF Metadata extraction failed: {str(e)}")
+        # If it fails, we still return 1 as fallback but log the failure
         return {"page_count": 1, "metadata": {}}
 
 def _extract_pdf_text_direct(pdf_bytes: bytes) -> str:
     """Extract text from ALL pages of a PDF."""
     try:
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        doc = fitz.open("pdf", pdf_bytes)
         parts = []
-        for page_num, page in enumerate(doc):
+        logger.info(f"EXTRACTION: Starting direct extraction from {doc.page_count} pages.")
+        
+        for page in doc:
             t = page.get_text("text")
             if t.strip(): 
                 parts.append(t.strip())
-            else:
-                # Page might be an image, but we'll try OCR later if the whole doc is empty
-                pass
-        return "\n\n".join(parts)
+        
+        full_text = "\n\n".join(parts)
+        doc.close()
+        logger.info(f"EXTRACTION: Completed. Total characters: {len(full_text)}")
+        return full_text
     except Exception as e:
-        logger.error(f"PDF Text extraction failed: {e}")
+        logger.error(f"EXTRACTION_FAILED: Direct extraction crashed: {str(e)}")
         return ""
 
 def _split_pdf_to_images(pdf_bytes: bytes, max_pages: int = 50) -> list[bytes]:
     """Convert scanned PDF pages to images for OCR. Increased limit to 50 pages."""
     pages = []
     try:
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        doc = fitz.open("pdf", pdf_bytes)
         for i, page in enumerate(doc):
             if i >= max_pages: 
                 logger.warning(f"OCR limit reached: only first {max_pages} pages will be processed.")
                 break
             pix = page.get_pixmap(dpi=150)
             pages.append(pix.tobytes("png"))
+        doc.close()
     except Exception as e:
         logger.error(f"PDF to Image conversion failed: {e}")
     return pages
@@ -95,6 +104,7 @@ async def upload_file(
     if is_pdf:
         meta = _extract_pdf_metadata(content)
         page_count = meta["page_count"]
+        logger.info(f"UPLOAD: Detected {page_count} pages for file {file.filename}")
     
     # 3. Try Direct Text Extraction
     raw_text = ""
@@ -103,21 +113,22 @@ async def upload_file(
     
     # 4. Scanned / Image PDF Fallback (OCR)
     if not raw_text.strip():
+        logger.info(f"OCR_FALLBACK: File {file.filename} is likely scanned. Starting OCR...")
         images = _split_pdf_to_images(content) if is_pdf else [content]
         text_parts = []
-        for img in images:
+        for i, img in enumerate(images):
             ocr_res = run_ocr(img, language=language)
             text_parts.append(ocr_res["text"])
         raw_text = "\n\n".join(text_parts)
 
     if not raw_text.strip():
-        raise HTTPException(422, detail="No readable text found in file.")
+        raise HTTPException(422, detail="No readable text found in file. Please ensure it's not a blurry image.")
 
     # 5. Save and Store
     unique_name = f"{uuid.uuid4()}_{file.filename}"
     url = await save_file(content, current_user.id, f"original/{unique_name}")
     
-    # 6. Refine Text (Processes whole document now)
+    # 6. Refine Text (Block-based refinement for large docs)
     try:
         refined_res = refine_text(raw_text)
         refined = refined_res["refined_text"]
@@ -149,12 +160,12 @@ async def upload_file(
     
     # 7. Index for AI Assistant
     try:
-        # Better chunking for large docs
+        # Smart chunking for multi-page docs
         chunks = [c.strip() for c in refined.split("\n\n") if len(c.strip()) > 50]
         if chunks:
             index_note(str(current_user.id), str(note.id), chunks)
     except Exception as e:
-        logger.warning(f"AI Indexing failed: {e}")
+        logger.warning(f"AI Assistant indexing skipped: {e}")
 
     return {
         "note_id": note.id, 

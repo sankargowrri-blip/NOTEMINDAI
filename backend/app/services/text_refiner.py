@@ -87,17 +87,19 @@ def refine_text(raw_ocr_text: str, block_size: int = 6000) -> typing.Dict[str, t
     cleaned = basic_cleanup(raw_ocr_text)
     
     # Process in blocks to handle large multi-page notes
+    # We increase block size and process more of the document
     blocks = [cleaned[i:i+block_size] for i in builtins.range(0, builtins.len(cleaned), block_size)]
     
     refined_parts = []
     logger.info(f"REFINER: Processing {builtins.len(blocks)} blocks for refinement...")
     
     for i, block in builtins.enumerate(blocks):
-        # We only refine the first 5 blocks (~30k chars) to save tokens on free tier, 
-        # but basic cleanup is applied to EVERYTHING.
-        if i < 5:
+        # We refine the first 8 blocks (~48k chars) to handle substantial PDFs
+        # This covers roughly 15-20 pages of dense text.
+        if i < 8:
             refined_parts.append(_llm_refine_block(block))
         else:
-            refined_parts.append(block) # Just use cleaned text for later parts
+            # For extremely large docs, we still clean but don't use LLM for every block to save time/tokens
+            refined_parts.append(block)
             
     return {"refined_text": "\n".join(refined_parts), "corrections": []}
