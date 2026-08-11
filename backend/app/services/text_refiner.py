@@ -1,23 +1,25 @@
-"""AI Text Refinement — uses Groq (free) or OpenAI, with basic cleanup fallback."""
+"""AI Text Refinement — Multi-page block processing for large documents."""
 from __future__ import annotations
 import re
 import logging
+import typing
+import builtins
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-
 def basic_cleanup(text: str) -> str:
     """Remove stray symbols, extra whitespace, duplicate lines."""
-    # Keep printable ASCII + major Unicode scripts (Latin, Devanagari, Tamil, Arabic, CJK)
+    if not text: return ""
+    # Keep printable ASCII + major Unicode scripts
     text = re.sub(
         r"[^\x20-\x7E\n\t"
-        r"\u0900-\u097F"   # Devanagari (Hindi)
+        r"\u0900-\u097F"   # Hindi
         r"\u0B80-\u0BFF"   # Tamil
         r"\u0600-\u06FF"   # Arabic
-        r"\u4E00-\u9FFF"   # CJK Unified Ideographs
-        r"\u3040-\u30FF"   # Japanese Hiragana/Katakana
-        r"\u00C0-\u024F"   # Latin Extended (French, German accents)
+        r"\u4E00-\u9FFF"   # CJK
+        r"\u3040-\u30FF"   # Japanese
+        r"\u00C0-\u024F"   # Accents
         r"]",
         "", text
     )
@@ -33,25 +35,18 @@ def basic_cleanup(text: str) -> str:
     return "\n".join(deduped).strip()
 
 
-def _llm_refine(text: str) -> str:
-    """Try Groq first, then OpenAI, return original on failure."""
+def _llm_refine_block(text: str) -> str:
+    """Refine a single block of text using LLM."""
     if not text.strip():
         return text
 
     prompt = (
-        "You are an expert text editor. This text was extracted from a handwritten note using OCR "
-        "and may contain errors. Fix:\n"
-        "1. OCR character errors (0/O, 1/l, rn/m etc.)\n"
-        "2. Spelling mistakes\n"
-        "3. Grammar and punctuation\n"
-        "4. Remove duplicate lines and stray symbols\n"
-        "5. Preserve technical terms, formulas, code, proper nouns\n"
-        "6. Keep paragraph structure and bullet lists\n"
-        "Return ONLY the corrected text.\n\n"
-        f"OCR TEXT:\n{text[:6000]}"  # limit to avoid token overflow
+        "You are an expert text editor. Fix OCR errors, spelling, and grammar while "
+        "preserving all technical terms, formulas, and formatting. Return ONLY corrected text.\n\n"
+        f"TEXT BLOCK:\n{text}"
     )
 
-    # Try Groq (free, fast)
+    # Try Groq (Fast & Free)
     groq_key = getattr(settings, "groq_api_key", "")
     if groq_key and groq_key.startswith("gsk_"):
         try:
@@ -64,11 +59,11 @@ def _llm_refine(text: str) -> str:
             )
             return resp.choices[0].message.content.strip()
         except Exception as e:
-            logger.warning(f"Groq refinement failed: {e}")
+            logger.warning(f"Groq block refinement failed: {e}")
 
-    # Try OpenAI fallback
+    # Fallback to OpenAI
     openai_key = settings.openai_api_key
-    if openai_key and openai_key.startswith("sk-") and len(openai_key) > 30:
+    if openai_key and openai_key.startswith("sk-"):
         try:
             from openai import OpenAI
             resp = OpenAI(api_key=openai_key).chat.completions.create(
@@ -79,15 +74,30 @@ def _llm_refine(text: str) -> str:
             )
             return resp.choices[0].message.content.strip()
         except Exception as e:
-            logger.warning(f"OpenAI refinement failed: {e}")
+            logger.warning(f"OpenAI block refinement failed: {e}")
 
-    return text  # return cleaned text if no LLM available
+    return text
 
 
-def refine_text(raw_ocr_text: str) -> dict:
-    """Full refinement: cleanup → LLM correction."""
+def refine_text(raw_ocr_text: str, block_size: int = 6000) -> typing.Dict[str, typing.Any]:
+    """Full refinement: cleanup → Block-based LLM correction."""
     if not raw_ocr_text.strip():
         return {"refined_text": "", "corrections": []}
+    
     cleaned = basic_cleanup(raw_ocr_text)
-    refined = _llm_refine(cleaned)
-    return {"refined_text": refined, "corrections": []}
+    
+    # Process in blocks to handle large multi-page notes
+    blocks = [cleaned[i:i+block_size] for i in builtins.range(0, builtins.len(cleaned), block_size)]
+    
+    refined_parts = []
+    logger.info(f"REFINER: Processing {builtins.len(blocks)} blocks for refinement...")
+    
+    for i, block in builtins.enumerate(blocks):
+        # We only refine the first 5 blocks (~30k chars) to save tokens on free tier, 
+        # but basic cleanup is applied to EVERYTHING.
+        if i < 5:
+            refined_parts.append(_llm_refine_block(block))
+        else:
+            refined_parts.append(block) # Just use cleaned text for later parts
+            
+    return {"refined_text": "\n".join(refined_parts), "corrections": []}

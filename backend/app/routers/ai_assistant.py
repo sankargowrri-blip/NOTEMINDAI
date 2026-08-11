@@ -13,6 +13,7 @@ from app.routers.deps import get_current_user
 from app.services import ai_service
 from app.db.mongo import chat_history_collection
 import uuid
+import builtins
 from datetime import datetime
 
 router = APIRouter()
@@ -51,6 +52,7 @@ async def _get_note_text(note_id: int, user: User, db: AsyncSession) -> str:
     note = result.scalar_one_or_none()
     if not note:
         raise HTTPException(404, detail="Note not found")
+    # Return full text to allow AI service to truncate as needed
     return note.refined_text or note.raw_ocr_text or ""
 
 
@@ -151,6 +153,14 @@ async def big_questions(
     db: AsyncSession = Depends(get_db),
 ):
     text = await _get_note_text(body.note_id, current_user, db)
+    
+    # Robust check: Genuinely too short if < 300 characters
+    if builtins.len(text.strip()) < 300:
+        raise HTTPException(
+            status_code=400, 
+            detail="Note is too short to generate university-style long questions. Please add more content."
+        )
+
     questions = await ai_service.generate_big_questions(text)
     return {"questions": questions}
 

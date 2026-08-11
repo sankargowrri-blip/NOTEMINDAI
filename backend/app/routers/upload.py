@@ -1,9 +1,10 @@
-"""File upload router with 2GB quota enforcement and optimized PDF handling."""
+"""File upload router with 2GB quota enforcement and optimized multi-page PDF handling."""
 from __future__ import annotations
 import io
 import uuid
 import logging
 import fitz
+import typing
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,31 +22,48 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "application/pdf"}
 
+def _extract_pdf_metadata(pdf_bytes: bytes) -> typing.Dict[str, typing.Any]:
+    """Extract page count and other metadata from PDF."""
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        return {
+            "page_count": len(doc),
+            "metadata": doc.metadata
+        }
+    except Exception as e:
+        logger.error(f"PDF Metadata extraction failed: {e}")
+        return {"page_count": 1, "metadata": {}}
+
 def _extract_pdf_text_direct(pdf_bytes: bytes) -> str:
-    """Fast extraction for text-based PDFs."""
+    """Extract text from ALL pages of a PDF."""
     try:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         parts = []
-        for page in doc:
+        for page_num, page in enumerate(doc):
             t = page.get_text("text")
             if t.strip(): 
                 parts.append(t.strip())
-        return "\n\n--- Page Break ---\n\n".join(parts)
-    except Exception:
+            else:
+                # Page might be an image, but we'll try OCR later if the whole doc is empty
+                pass
+        return "\n\n".join(parts)
+    except Exception as e:
+        logger.error(f"PDF Text extraction failed: {e}")
         return ""
 
-def _split_pdf_to_images(pdf_bytes: bytes, max_pages: int = 20) -> list[bytes]:
-    """Convert scanned PDF pages to images. Limited to first 20 pages on free tier."""
+def _split_pdf_to_images(pdf_bytes: bytes, max_pages: int = 50) -> list[bytes]:
+    """Convert scanned PDF pages to images for OCR. Increased limit to 50 pages."""
     pages = []
     try:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         for i, page in enumerate(doc):
             if i >= max_pages: 
+                logger.warning(f"OCR limit reached: only first {max_pages} pages will be processed.")
                 break
             pix = page.get_pixmap(dpi=150)
             pages.append(pix.tobytes("png"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"PDF to Image conversion failed: {e}")
     return pages
 
 @router.post("/", status_code=201)
@@ -72,12 +90,18 @@ async def upload_file(
     file_hash = compute_file_hash(content)
     is_pdf = file.filename.lower().endswith(".pdf")
     
-    # 2. Try Direct Text Extraction (Fastest)
+    # 2. Extract Metadata (Page Count)
+    page_count = 1
+    if is_pdf:
+        meta = _extract_pdf_metadata(content)
+        page_count = meta["page_count"]
+    
+    # 3. Try Direct Text Extraction
     raw_text = ""
     if is_pdf:
         raw_text = _extract_pdf_text_direct(content)
     
-    # 3. Scanned / Image PDF Fallback (OCR)
+    # 4. Scanned / Image PDF Fallback (OCR)
     if not raw_text.strip():
         images = _split_pdf_to_images(content) if is_pdf else [content]
         text_parts = []
@@ -89,14 +113,16 @@ async def upload_file(
     if not raw_text.strip():
         raise HTTPException(422, detail="No readable text found in file.")
 
-    # 4. Save and Store
+    # 5. Save and Store
     unique_name = f"{uuid.uuid4()}_{file.filename}"
     url = await save_file(content, current_user.id, f"original/{unique_name}")
     
+    # 6. Refine Text (Processes whole document now)
     try:
         refined_res = refine_text(raw_text)
         refined = refined_res["refined_text"]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Text refinement failed: {e}")
         refined = raw_text
     
     note = Note(
@@ -109,6 +135,7 @@ async def upload_file(
         raw_ocr_text=raw_text,
         file_hash=file_hash,
         file_size_mb=round(float(size_mb), 2),
+        page_count=page_count,
         subject=subject or None,
         semester=semester or None
     )
@@ -120,12 +147,18 @@ async def upload_file(
     await db.commit()
     await db.refresh(note)
     
-    # Index for AI Assistant
+    # 7. Index for AI Assistant
     try:
-        chunks = [c for c in refined.split("\n\n") if len(c) > 50]
+        # Better chunking for large docs
+        chunks = [c.strip() for c in refined.split("\n\n") if len(c.strip()) > 50]
         if chunks:
             index_note(str(current_user.id), str(note.id), chunks)
     except Exception as e:
         logger.warning(f"AI Indexing failed: {e}")
 
-    return {"note_id": note.id, "title": note.title, "ocr_text_preview": refined[:200]}
+    return {
+        "note_id": note.id, 
+        "title": note.title, 
+        "page_count": page_count,
+        "ocr_text_preview": refined[:200]
+    }
