@@ -47,6 +47,41 @@ async def lifespan(app: FastAPI):
         logging.warning("DIAGNOSTIC: Groq API Key is MISSING or invalid. AI features will fail.")
 
     await init_db()
+    
+    # One-time background repair for old notes (page_count fix)
+    from app.models.note import Note
+    from sqlalchemy import select
+    import fitz
+    import os
+    import builtins
+    
+    async def fix_old_notes():
+        async for db in get_db():
+            result = await db.execute(select(Note).where(Note.page_count == 1))
+            notes = result.scalars().all()
+            for note in notes:
+                if note.original_file_url and note.original_file_url.lower().endswith(".pdf"):
+                    rel = note.original_file_url.replace("/uploads/", "")
+                    path = os.path.join(settings.local_upload_dir, rel)
+                    if os.path.exists(path):
+                        try:
+                            doc = fitz.open(path)
+                            if builtins.len(doc) > 1:
+                                logging.info(f"AUTO_FIX: Updating page count for note {note.id}")
+                                note.page_count = builtins.len(doc)
+                                # Re-extract if text was likely truncated
+                                if builtins.len(note.refined_text or "") < 2000:
+                                    note.refined_text = "\n\n".join([p.get_text("text") for p in doc])
+                            doc.close()
+                        except: pass
+            await db.commit()
+            break
+            
+    import asyncio
+    try:
+        asyncio.create_task(fix_old_notes())
+    except: pass
+    
     yield
     logging.info("Shutting down NoteMind AI...")
 

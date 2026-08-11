@@ -1,22 +1,14 @@
-# Task List - NoteMind AI Comprehensive Overhaul
+# Task List - Note Page Count & Full Content Extraction Fix
 
-- `[/]` Backend: Database & Models Update
-    - `[ ]` Update `User` model with 2GB default quota
-    - `[ ]` Ensure `CASCADE` rules are defined in `Note` model relationships
-- `[/]` Backend: Core Service Updates
-    - `[ ]` Update `ai_service.py` for Big Questions Full Answer
-    - `[ ]` Update `storage_service.py` with robust file deletion
-- `[/]` Backend: API Router Fixes
-    - `[ ]` Fix `notes.py` deletion logic (cleanup dependencies + files)
-    - `[ ]` Fix `search.py` (include content + metadata, case-insensitive)
-    - `[ ]` Fix `quiz.py` (+1/-1 evaluation and result structure)
-    - `[ ]` Fix `upload.py` (enforce 2GB storage quota)
-    - `[ ]` Add `admin.py` purge endpoint
-- `[/]` Frontend: New Features & UI Fixes
-    - `[ ]` Implement `useStudyTracker.ts` hook
-    - `[ ]` Update `BigQuestionsPage` with Full Answer & PDF Export
-    - `[ ]` Update `QuizPage` with accurate scoring & review UI
-    - `[ ]` Update `DashboardPage` with storage and study time stats
+- `[/]` Backend: Robust Ingestion Pipeline
+    - `[ ]` Update `routers/upload.py` with actual page counting and full extraction
+    - `[ ]` Update `services/text_refiner.py` to handle large documents in blocks
+- `[/]` Backend: AI Feature Optimization
+    - `[ ]` Increase context window in `services/ai_service.py` for Big Questions
+    - `[ ]` Update `routers/ai_assistant.py` with improved content sufficiency checks
+- `[ ]` Data Repair: Reprocess Script
+    - `[ ]` Create `scratch/fix_page_counts.py`
+    - `[ ]` Execute repair script
 - `[ ]` Final Verification
-    - `[ ]` Purge old data
-    - `[ ]` End-to-end testing of all fixed features
+    - `[ ]` Test multi-page PDF upload and metadata
+    - `[ ]` Test Big Question generation on large notes

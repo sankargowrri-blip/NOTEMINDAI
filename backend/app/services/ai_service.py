@@ -9,13 +9,13 @@ from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-def truncate_text(text: str, max_chars: int = 2500) -> str:
-    """Stay within Groq TPM limits by limiting context size."""
+def truncate_text(text: str, max_chars: int = 4000) -> str:
+    """Limit text to stay under Groq TPM limits (Free Tier)."""
     if not text: return ""
     return text[:max_chars] + "..." if len(text) > max_chars else text
 
 async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Optional[List[Dict]] = None) -> str:
-    """Call Groq using Async client for better performance."""
+    """Call Groq using Async client with optimized token usage."""
     groq_key = settings.groq_api_key
     if groq_key and groq_key.startswith("gsk_"):
         try:
@@ -26,7 +26,7 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
             if messages:
                 # Filter out system messages and strictly limit history
                 history = [m for m in messages if m.get("role") != "system"]
-                chat_messages.extend(history[-2:]) 
+                chat_messages.extend(history[-2:]) # Only last 2 for extreme safety
             chat_messages.append({"role": "user", "content": user})
             
             resp = await client.chat.completions.create(
@@ -43,12 +43,9 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
 
 async def rag_chat(user_id: str, question: str, note_text: str = "", history: List[Dict] = None) -> dict:
     """
-    Enhanced RAG Chat with strict token management and accurate response matching.
+    Enhanced RAG Chat with strict token management.
     """
-    
     is_web = False
-    
-    # SYSTEM PROMPT FOR CONCISE, INTENT-MATCHING ANSWERS
     system = (
         "You are NoteMind AI, an expert study assistant. Answer questions ACCURATELY and DIRECTLY. "
         "1. INTENT MATCHING: Understand the user's intent. "
@@ -66,12 +63,13 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     
     user_prompt = ""
     if note_text and len(note_text.strip()) > 50:
-        safe_text = truncate_text(note_text)
+        # Chat can handle more context now with optimized history
+        safe_text = truncate_text(note_text, max_chars=4000)
         user_prompt += f"NOTE TEXT:\n{safe_text}\n\n"
     else:
         is_web = True
     
-    # Internet Search Fallback for specific keywords
+    # Check for web search keywords
     should_search = is_web
     if not should_search:
         keywords = ["latest", "recent", "who is", "what is", "news", "today"]
@@ -99,19 +97,18 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
 
 async def generate_summary(text: str, mode: str = "bullet") -> str:
     system = "You are a professional note summarizer. Give a concise summary without extra text."
-    safe_text = truncate_text(text, 2500)
+    safe_text = truncate_text(text, 4000)
     prompt = f"Summarize this text as {mode}: \n\n{safe_text}"
     return await _chat(system, prompt)
 
 async def simplify_note(text: str, level: str = "school") -> str:
     system = f"Explain this text like I am a {level} student. Be direct and simple."
-    safe_text = truncate_text(text, 2500)
-    prompt = f"Text to simplify:\n\n{safe_text}"
-    return await _chat(system, prompt)
+    safe_text = truncate_text(text, 4000)
+    return await _chat(system, safe_text)
 
 async def extract_keywords(text: str) -> dict:
     system = "Return JSON ONLY: {\"keywords\":[], \"definitions\":[]}. Extract only from text."
-    safe_text = truncate_text(text, 2500)
+    safe_text = truncate_text(text, 4000)
     raw = await _chat(system, safe_text)
     try:
         match = re.search(r"\{.*\}", raw, re.DOTALL)
@@ -123,16 +120,18 @@ async def extract_keywords(text: str) -> dict:
 
 async def translate_note(text: str, target_language: str) -> str:
     system = f"Translate the following text to {target_language}. Return ONLY the translated text. No explanation."
-    safe_text = truncate_text(text, 2000)
+    safe_text = truncate_text(text, 3000)
     return await _chat(system, safe_text)
 
 async def generate_big_questions(text: str) -> List[Dict]:
+    """Generate long questions with expanded context for multi-page notes."""
     system = (
         "Generate 3 university-style long questions (10-16 marks) based on the notes. "
         "For each question, provide a structured 'outline' AND a comprehensive 'full_answer' (suitable for exam writing with headings). "
         "Return as JSON list: [{\"question\":\"...\", \"marks\":15, \"outline\":[\"...\"], \"full_answer\":\"...\"}]"
     )
-    safe_text = truncate_text(text, 2500)
+    # Increased context for big questions to see the WHOLE document (up to 8k chars)
+    safe_text = truncate_text(text, max_chars=8000)
     raw = await _chat(system, user=f"Notes:\n\n{safe_text}")
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
@@ -141,3 +140,10 @@ async def generate_big_questions(text: str) -> List[Dict]:
         return []
     except Exception: 
         return []
+
+async def predict_exam_topics(text: str, weak_topics: List[str]) -> List[str]:
+    system = "Identify most likely exam topics based on the notes and weak areas."
+    safe_text = truncate_text(text, 4000)
+    prompt = f"Notes: {safe_text}\nWeak Areas: {weak_topics}"
+    raw = await _chat(system, prompt)
+    return [t.strip() for t in raw.split("\n") if t.strip()]
