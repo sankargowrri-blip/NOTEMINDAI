@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { notesApi, aiApi, exportApi } from "@/lib/api";
+import { useStudyTracker } from "@/lib/useStudyTracker";
 import toast from "react-hot-toast";
 import {
   FileText, Brain, BookOpen, Layers, Download, Globe, Star,
@@ -21,6 +22,7 @@ const EXPORT_FORMATS = ["pdf", "docx", "txt", "html", "md", "pptx"];
 export default function NoteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const noteId = Number(id);
+  useStudyTracker(noteId); // Track reading time
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>("text");
   const [summaryMode, setSummaryMode] = useState("bullet");

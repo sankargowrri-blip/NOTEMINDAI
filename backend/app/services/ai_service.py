@@ -129,7 +129,8 @@ async def translate_note(text: str, target_language: str) -> str:
 async def generate_big_questions(text: str) -> List[Dict]:
     system = (
         "Generate 3 university-style long questions (10-16 marks) based on the notes. "
-        "Return as JSON list: [{\"question\":\"...\",\"marks\":15,\"outline\":[...]}]"
+        "For each question, provide a structured 'outline' AND a comprehensive 'full_answer' (suitable for exam writing with headings). "
+        "Return as JSON list: [{\"question\":\"...\", \"marks\":15, \"outline\":[\"...\"], \"full_answer\":\"...\"}]"
     )
     safe_text = truncate_text(text, 2500)
     raw = await _chat(system, user=f"Notes:\n\n{safe_text}")

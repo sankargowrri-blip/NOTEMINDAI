@@ -110,6 +110,8 @@ export const flashcardsApi = {
 // ── Analytics ─────────────────────────────────────────────────────────────────
 export const analyticsApi = {
   dashboard: () => api.get("/api/analytics/dashboard"),
+  logStudySession: (noteId: number, durationMinutes: number) =>
+    api.post("/api/analytics/session", null, { params: { note_id: noteId, duration_minutes: durationMinutes } }),
 };
 
 // ── Export ────────────────────────────────────────────────────────────────────

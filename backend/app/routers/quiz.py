@@ -4,6 +4,7 @@ import json
 import re
 import random
 import logging
+from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -124,11 +125,9 @@ def _smart_match(user_ans: str, correct_ans: str, options: dict | None = None) -
     clean_correct = re.sub(r'[^A-D]', '', c)[:1]
     if u == clean_correct and u in "ABCD": return True
 
-    if options and u in "ABCD":
-        opt_text = str(options.get(u, "")).strip().upper()
-        norm_opt = _normalize(opt_text)
-        norm_correct = _normalize(c)
-        if norm_opt and (norm_opt == norm_correct or norm_opt in norm_correct or norm_correct in norm_opt):
+    if options:
+        correct_text = str(options.get(c, options.get(clean_correct, ""))).strip().upper()
+        if _normalize(u) == _normalize(correct_text):
             return True
 
     return False
@@ -161,14 +160,13 @@ async def submit_quiz(
         else:
             wrong_count += 1
 
-    # MARKING SCHEME: +1 for correct, -1 for wrong
     final_marks = correct_count - wrong_count
     
     attempt = QuizAttempt(
         quiz_id=quiz.id,
         user_id=current_user.id,
         note_id=quiz.note_id,
-        score=final_marks,
+        score=float(final_marks),
         total=len(quiz.questions),
         answers=body.answers,
     )
@@ -176,6 +174,7 @@ async def submit_quiz(
     await db.commit()
     
     return {
+        "student_name": current_user.display_name,
         "score": final_marks,
         "max_marks": len(quiz.questions),
         "total": len(quiz.questions),

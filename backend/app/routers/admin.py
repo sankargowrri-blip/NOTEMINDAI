@@ -1,15 +1,90 @@
-"""Admin router."""
+"""Admin router with deep cleanup capabilities."""
+from __future__ import annotations
+import logging
+import shutil
+import os
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 
 from app.db.postgres import get_db
 from app.models.user import User
 from app.models.note import Note
+from app.models.quiz import Quiz, QuizAttempt
+from app.models.flashcard import FlashcardSet, FlashcardRecall
+from app.models.analytics import StudySession, WeakTopic
 from app.routers.deps import get_admin_user
 
 router = APIRouter()
+logger = logging.getLogger("notemind.admin")
 
+@router.post("/purge-data")
+async def purge_all_user_data(
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    CRITICAL: Deletes ALL user-generated content across the entire platform.
+    Keeps user accounts, settings, and infrastructure.
+    """
+    try:
+        logger.info(f"ADMIN_PURGE: User {admin.display_name} initiated total system purge.")
+        
+        # 1. Clear PostgreSQL study-related data
+        await db.execute(delete(QuizAttempt))
+        await db.execute(delete(Quiz))
+        await db.execute(delete(FlashcardRecall))
+        await db.execute(delete(FlashcardSet))
+        await db.execute(delete(StudySession))
+        await db.execute(delete(WeakTopic))
+        
+        # 2. Clear Notes and reset user storage usage
+        await db.execute(delete(Note))
+        
+        users = await db.execute(select(User))
+        for u in users.scalars().all():
+            u.storage_used_mb = 0.0
+            
+        # 3. Clear MongoDB content
+        try:
+            from app.db.mongo import (
+                notes_collection, versions_collection, 
+                chat_history_collection, quiz_responses_collection,
+                get_mongo_db
+            )
+            await notes_collection().delete_many({})
+            await versions_collection().delete_many({})
+            await chat_history_collection().delete_many({})
+            await quiz_responses_collection().delete_many({})
+            await get_mongo_db()["bookmarks"].delete_many({})
+        except Exception as me:
+            logger.warning(f"PURGE: MongoDB cleanup partial failure: {me}")
+
+        # 4. Clear Local Storage Files
+        try:
+            from app.config import settings
+            import shutil
+            import os
+            upload_dir = settings.local_upload_dir
+            if os.path.exists(upload_dir):
+                for filename in os.listdir(upload_dir):
+                    file_path = os.path.join(upload_dir, filename)
+                    try:
+                        if os.path.isfile(file_path) or os.path.islink(file_path):
+                            os.unlink(file_path)
+                        elif os.path.isdir(file_path):
+                            shutil.rmtree(file_path)
+                    except Exception as fe:
+                        logger.error(f"PURGE: Failed to delete {file_path}. Reason: {fe}")
+        except Exception as se:
+            logger.warning(f"PURGE: Storage cleanup failed: {se}")
+
+        await db.commit()
+        return {"message": "Total system purge completed successfully."}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"PURGE_FAILED: {str(e)}")
+        raise HTTPException(500, detail="Purge failed. Check logs.")
 
 @router.get("/dashboard")
 async def admin_dashboard(

@@ -1,4 +1,4 @@
-"""File upload router with 1GB support and optimized PDF handling."""
+"""File upload router with 2GB quota enforcement and optimized PDF handling."""
 from __future__ import annotations
 import io
 import uuid
@@ -20,7 +20,6 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "application/pdf"}
-MAX_SIZE_MB = 1024  # Increased to 1GB for large books
 
 def _extract_pdf_text_direct(pdf_bytes: bytes) -> str:
     """Fast extraction for text-based PDFs."""
@@ -62,18 +61,23 @@ async def upload_file(
     content = await file.read()
     size_mb = len(content) / (1024 * 1024)
     
-    if size_mb > MAX_SIZE_MB:
-        raise HTTPException(400, detail=f"File too large. Maximum is {MAX_SIZE_MB}MB")
+    # 1. Enforce 2GB Quota
+    quota_mb = current_user.storage_quota_mb or 2048
+    if (current_user.storage_used_mb + size_mb) > quota_mb:
+        raise HTTPException(
+            status_code=400, 
+            detail="Storage limit reached. Please delete some notes to upload new files."
+        )
 
     file_hash = compute_file_hash(content)
     is_pdf = file.filename.lower().endswith(".pdf")
     
-    # 1. Try Direct Text Extraction (Fastest)
+    # 2. Try Direct Text Extraction (Fastest)
     raw_text = ""
     if is_pdf:
         raw_text = _extract_pdf_text_direct(content)
     
-    # 2. Scanned / Image PDF Fallback (OCR)
+    # 3. Scanned / Image PDF Fallback (OCR)
     if not raw_text.strip():
         images = _split_pdf_to_images(content) if is_pdf else [content]
         text_parts = []
@@ -83,14 +87,15 @@ async def upload_file(
         raw_text = "\n\n".join(text_parts)
 
     if not raw_text.strip():
-        raise HTTPException(422, detail="No readable text found in file. Please ensure it's not a blurry image.")
+        raise HTTPException(422, detail="No readable text found in file.")
 
-    # 3. Save and Store
+    # 4. Save and Store
     unique_name = f"{uuid.uuid4()}_{file.filename}"
     url = await save_file(content, current_user.id, f"original/{unique_name}")
     
     try:
-        refined = refine_text(raw_text)["refined_text"]
+        refined_res = refine_text(raw_text)
+        refined = refined_res["refined_text"]
     except Exception:
         refined = raw_text
     
@@ -103,10 +108,13 @@ async def upload_file(
         refined_text=refined,
         raw_ocr_text=raw_text,
         file_hash=file_hash,
-        file_size_mb=round(size_mb, 2),
+        file_size_mb=round(float(size_mb), 2),
         subject=subject or None,
         semester=semester or None
     )
+    
+    # Update user storage usage
+    current_user.storage_used_mb = float(current_user.storage_used_mb or 0) + size_mb
     
     db.add(note)
     await db.commit()

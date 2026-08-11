@@ -2,19 +2,26 @@
 import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { aiApi, notesApi } from "@/lib/api";
-import { BookOpen, Loader2, ChevronDown, ChevronUp, Sparkles, AlertCircle } from "lucide-react";
+import { useStudyTracker } from "@/lib/useStudyTracker";
+import { BookOpen, Loader2, ChevronDown, ChevronUp, Sparkles, AlertCircle, FileText, Download } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Question {
   question: string;
   marks: number;
   outline: string[];
+  full_answer?: string;
 }
 
 function BigQuestionsContent() {
   const searchParams = useSearchParams();
   const noteId = searchParams.get("note");
+  useStudyTracker(noteId ? Number(noteId) : undefined); // Track question bank study
 
   const [notes, setNotes] = useState<any[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(noteId ? Number(noteId) : null);
@@ -65,8 +72,65 @@ function BigQuestionsContent() {
     }
   };
 
+  const generatePDF = (q: Question) => {
+    const doc = new jsPDF();
+    const note = notes.find(n => n.id === selectedNoteId);
+
+    // Header
+    doc.setFontSize(24);
+    doc.setTextColor(79, 88, 255);
+    doc.text("NoteMind AI", 14, 20);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Subject: ${note?.subject || "General"} | Unit: ${note?.unit || "N/A"}`, 14, 28);
+    doc.line(14, 32, 196, 32);
+
+    // Question
+    doc.setFontSize(16);
+    doc.setTextColor(33);
+    const splitQuestion = doc.splitTextToSize(`${q.question} (${q.marks} Marks)`, 180);
+    doc.text(splitQuestion, 14, 42);
+
+    let currentY = 42 + (splitQuestion.length * 7);
+
+    // Structure
+    doc.setFontSize(12);
+    doc.setTextColor(79, 88, 255);
+    doc.text("Proposed Answer Structure:", 14, currentY + 10);
+
+    doc.setFontSize(10);
+    doc.setTextColor(80);
+    const structureItems = q.outline.map((s, i) => [`${i + 1}`, s]);
+
+    autoTable(doc, {
+        startY: currentY + 14,
+        body: structureItems,
+        theme: 'plain',
+        styles: { fontSize: 9, cellPadding: 2 },
+        columnStyles: { 0: { cellWidth: 10, fontStyle: 'bold' } }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 15;
+
+    // Full Answer
+    doc.setFontSize(14);
+    doc.setTextColor(0);
+    doc.text("Full Answer", 14, currentY);
+
+    doc.setFontSize(10);
+    doc.setTextColor(50);
+    const splitAnswer = doc.splitTextToSize(q.full_answer || "No full answer generated.", 180);
+
+    // Multi-page support for long answers
+    doc.text(splitAnswer, 14, currentY + 8);
+
+    doc.save(`${note?.title || 'Study'}_Big_Question.pdf`);
+    toast.success("PDF Downloaded!");
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in px-2 md:px-4">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in px-2 md:px-4 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -74,7 +138,7 @@ function BigQuestionsContent() {
             Big Question Bank
           </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-            University-style 10-16 mark questions with structured outlines.
+            University-style long questions with structured outlines and full answers.
           </p>
         </div>
 
@@ -107,7 +171,7 @@ function BigQuestionsContent() {
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Ready for your exam?</h3>
             <p className="text-gray-500 dark:text-gray-400 max-w-sm mt-1 text-sm">
-              Select a note and click Generate to see high-probability long-form questions.
+              Select a note and click Generate to see high-probability 16-mark questions.
             </p>
           </div>
         </div>
@@ -143,8 +207,10 @@ function BigQuestionsContent() {
             </button>
 
             {expandedIndex === i && (
-              <div className="px-6 pb-6 space-y-4 animate-slide-up">
+              <div className="px-6 pb-6 space-y-6 animate-slide-up">
                 <div className="h-px bg-gray-100 dark:bg-gray-800" />
+
+                {/* Structure */}
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <AlertCircle size={16} className="text-brand-500" />
@@ -160,6 +226,29 @@ function BigQuestionsContent() {
                       </li>
                     ))}
                   </ul>
+                </div>
+
+                {/* Full Answer */}
+                <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <FileText size={16} className="text-brand-500" />
+                    Full Answer
+                  </h4>
+                  <div className="p-5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-100 dark:border-gray-800 prose prose-sm dark:prose-invert max-w-none">
+                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {q.full_answer || "Generating detailed answer..."}
+                     </ReactMarkdown>
+                  </div>
+                </div>
+
+                {/* PDF Actions */}
+                <div className="flex gap-3 pt-4">
+                    <button
+                        onClick={() => generatePDF(q)}
+                        className="btn-primary py-2 px-6 shadow-lg shadow-brand-500/20"
+                    >
+                        <Download size={18} /> Download PDF
+                    </button>
                 </div>
               </div>
             )}

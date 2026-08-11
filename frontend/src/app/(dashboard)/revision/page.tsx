@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { api } from "@/lib/api";
+import { useStudyTracker } from "@/lib/useStudyTracker";
 import toast from "react-hot-toast";
 import { Calendar, Plus, Trash2, Loader2, Clock, BookOpen } from "lucide-react";
 import { format, addDays } from "date-fns";
@@ -17,6 +18,7 @@ interface Session { subject: string; topic: string; duration_minutes: number; }
 interface DayPlan { date: string; sessions: Session[]; }
 
 export default function RevisionPage() {
+  useStudyTracker(); // Track revision planning time
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<DayPlan[]>([]);
 

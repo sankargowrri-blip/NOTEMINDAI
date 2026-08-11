@@ -1,22 +1,22 @@
-# Task List - NoteMind AI Total Optimization
+# Task List - NoteMind AI Comprehensive Overhaul
 
-- `[x]` Remove Diagram Dependencies (`mermaid`, `react-flow-renderer`)
-- `[x]` Delete Diagram Components (`Mermaid.tsx`, `Flowchart.tsx`)
-- `[/]` Backend: AI Assistant "Wise Brain" Implementation
-    - `[x]` Update `ai_service.py` (conciseness, no-diagrams)
-    - `[x]` Update `ai_assistant.py` (remove diagram routes)
-- `[/]` Backend: Flashcards & Translation Fixes
-    - `[x]` Update `translate.py` (import fixes, direct translation)
-    - `[ ]` Update `flashcards.py` (import fixes, generation robustness)
-- `[/]` Backend: Quiz System Overhaul
-    - `[x]` Update `quiz.py` (+1/-1 scoring logic)
-    - `[x]` Update `quiz_service.py` (strict formatting)
-- `[/]` Frontend: Remove Diagram UI
-    - `[x]` Update `ai-chat/page.tsx` (remove flowchart prompts)
-    - `[x]` Update `notes/[id]/page.tsx` (remove diagram tabs)
-- `[/]` Frontend: Quiz Result UI & Evaluation
-    - `[x]` Update `quiz/page.tsx` (score display, green/red indicators)
-- `[ ]` Final Verification & Deployment
-    - `[ ]` Test note deletion
-    - `[ ]` Push to GitHub
-    - `[ ]` Trigger Render build
+- `[/]` Backend: Database & Models Update
+    - `[ ]` Update `User` model with 2GB default quota
+    - `[ ]` Ensure `CASCADE` rules are defined in `Note` model relationships
+- `[/]` Backend: Core Service Updates
+    - `[ ]` Update `ai_service.py` for Big Questions Full Answer
+    - `[ ]` Update `storage_service.py` with robust file deletion
+- `[/]` Backend: API Router Fixes
+    - `[ ]` Fix `notes.py` deletion logic (cleanup dependencies + files)
+    - `[ ]` Fix `search.py` (include content + metadata, case-insensitive)
+    - `[ ]` Fix `quiz.py` (+1/-1 evaluation and result structure)
+    - `[ ]` Fix `upload.py` (enforce 2GB storage quota)
+    - `[ ]` Add `admin.py` purge endpoint
+- `[/]` Frontend: New Features & UI Fixes
+    - `[ ]` Implement `useStudyTracker.ts` hook
+    - `[ ]` Update `BigQuestionsPage` with Full Answer & PDF Export
+    - `[ ]` Update `QuizPage` with accurate scoring & review UI
+    - `[ ]` Update `DashboardPage` with storage and study time stats
+- `[ ]` Final Verification
+    - `[ ]` Purge old data
+    - `[ ]` End-to-end testing of all fixed features

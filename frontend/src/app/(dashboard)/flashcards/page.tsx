@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { notesApi, flashcardsApi } from "@/lib/api";
+import { useStudyTracker } from "@/lib/useStudyTracker";
 import toast from "react-hot-toast";
 import { Layers, Loader2, ChevronLeft, ChevronRight, RotateCcw, CheckCircle, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,6 +12,7 @@ interface Card { front: string; back: string; }
 export default function FlashcardsPage() {
   const [step, setStep] = useState<"config" | "study">("config");
   const [noteId, setNoteId] = useState("");
+  useStudyTracker(Number(noteId) || undefined); // Track flashcard study
   const [cardType, setCardType] = useState("standard");
   const [count, setCount] = useState(20);
   const [loading, setLoading] = useState(false);

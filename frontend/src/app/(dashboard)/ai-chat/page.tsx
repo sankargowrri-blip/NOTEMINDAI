@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { aiApi, notesApi } from "@/lib/api";
+import { useStudyTracker } from "@/lib/useStudyTracker";
 import { Brain, Send, Loader2, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Bookmark, RefreshCw, ArrowDown, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
@@ -27,6 +28,7 @@ const PROMPT_MODES = [
 function AIChatContent() {
   const searchParams = useSearchParams();
   const urlNoteId = searchParams.get("note");
+  useStudyTracker(urlNoteId ? Number(urlNoteId) : undefined); // Track AI Assistant study
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");

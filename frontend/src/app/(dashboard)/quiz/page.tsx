@@ -2,8 +2,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { notesApi, quizApi } from "@/lib/api";
+import { useAuthStore } from "@/lib/store";
+import { useStudyTracker } from "@/lib/useStudyTracker";
 import toast from "react-hot-toast";
-import { BookOpen, Loader2, ChevronRight, CheckCircle, XCircle, RotateCcw, AlertCircle, FileSpreadsheet, FileText, MinusCircle } from "lucide-react";
+import { BookOpen, Loader2, ChevronRight, CheckCircle, XCircle, RotateCcw, AlertCircle, FileSpreadsheet, FileText, MinusCircle, User } from "lucide-react";
 import clsx from "clsx";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -20,6 +22,9 @@ interface Question {
 }
 
 export default function QuizPage() {
+  const { user } = useAuthStore();
+  useStudyTracker(); // Track study time during quiz session
+
   const [step, setStep] = useState<"config" | "quiz" | "result">("config");
   const [noteId, setNoteId] = useState("");
   const [qType, setQType] = useState("mcq");
@@ -29,7 +34,7 @@ export default function QuizPage() {
   const [quiz, setQuiz] = useState<{ quiz_id: number; title: string; questions: Question[] } | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [result, setResult] = useState<{
-      score: number; total: number; percentage: number;
+      score: number; total: number; percentage: number; student_name: string;
       correct: number; wrong: number; unanswered: number; max_marks: number;
   } | null>(null);
 
@@ -133,10 +138,10 @@ export default function QuizPage() {
     doc.text("NoteMind AI — Quiz Report", 14, 20);
     doc.setFontSize(12);
     doc.setTextColor(100);
-    doc.text(`Topic: ${quiz.title}`, 14, 30);
-    doc.text(`Final Score: ${result.score} / ${result.total}`, 14, 37);
-    doc.text(`Accuracy: ${result.percentage}%`, 14, 44);
-    doc.text(`Correct: ${result.correct} | Wrong: ${result.wrong} | Unanswered: ${result.unanswered}`, 14, 51);
+    doc.text(`Student: ${result.student_name}`, 14, 30);
+    doc.text(`Topic: ${quiz.title}`, 14, 37);
+    doc.text(`Final Score: ${result.score} / ${result.total}`, 14, 44);
+    doc.text(`Accuracy: ${result.percentage}%`, 14, 51);
 
     const tableData = quiz.questions.map((q, i) => {
       const ck = getCorrectKey(q);
@@ -147,7 +152,7 @@ export default function QuizPage() {
         q.question,
         uk || "-",
         ck || q.answer,
-        isCorrect ? "CORRECT" : (uk ? "WRONG" : "SKIPPED")
+        isCorrect ? "CORRECT (+1)" : (uk ? "WRONG (-1)" : "SKIPPED")
       ];
     });
 
@@ -240,14 +245,17 @@ export default function QuizPage() {
   );
 
   if (step === "result" && result && quiz) return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-fade-in py-6 px-2">
+    <div className="max-w-3xl mx-auto space-y-8 animate-fade-in py-6 px-2 pb-20">
       <div className="card p-10 text-center space-y-4 shadow-2xl border-t-8 border-t-brand-500">
         <div className={`w-32 h-32 rounded-full mx-auto flex flex-col items-center justify-center text-white shadow-lg border-8 border-white/20 ${result.score >= (result.total / 2) ? "bg-green-500" : "bg-red-500"}`}>
             <span className="text-4xl font-black">{result.score}</span>
-            <span className="text-xs font-bold opacity-80">/{result.total} MARKS</span>
+            <span className="text-[10px] font-bold opacity-80 uppercase tracking-tighter">MARKS</span>
         </div>
         <div>
-          <h2 className="text-3xl font-black text-gray-900 dark:text-white">Quiz Result</h2>
+          <div className="flex items-center justify-center gap-2 mb-2 text-gray-500 font-bold uppercase text-[10px] tracking-widest">
+              <User size={14} className="text-brand-500" /> Student: {result.student_name}
+          </div>
+          <h2 className="text-3xl font-black text-gray-900 dark:text-white">Exam Results</h2>
           <div className="flex items-center justify-center gap-6 mt-4">
               <div className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={18}/> {result.correct} Correct</div>
               <div className="text-red-600 font-bold flex items-center gap-1"><XCircle size={18}/> {result.wrong} Wrong</div>
@@ -256,12 +264,12 @@ export default function QuizPage() {
         </div>
         <div className="pt-4">
             <div className="text-brand-600 font-black text-4xl">{result.percentage}%</div>
-            <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mt-1">Accuracy Level</p>
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-1">Accuracy Grade</p>
         </div>
       </div>
 
       <div className="space-y-6">
-        <h3 className="text-xl font-black text-gray-900 dark:text-white px-1">Detailed Question Review</h3>
+        <h3 className="text-xl font-black text-gray-900 dark:text-white px-1 uppercase tracking-tight">Question Review</h3>
 
         {quiz.questions.map((q, i) => {
           const correctKey = getCorrectKey(q);
@@ -271,17 +279,17 @@ export default function QuizPage() {
 
           return (
             <div key={i} className={clsx(
-              "card p-8 border-l-[8px] transition-all shadow-md",
+              "card p-8 border-l-[10px] transition-all shadow-md",
               isCorrect ? "border-l-green-500 bg-green-50/10" :
-              isWrong ? "border-l-red-500 bg-red-50/10" : "border-l-gray-300"
+              isWrong ? "border-l-red-500 bg-red-50/10" : "border-l-gray-300 bg-gray-50/10"
             )}>
               <div className="flex items-start justify-between gap-6 mb-6">
                 <div className="space-y-1">
                     <p className="text-gray-900 dark:text-white text-xl font-bold leading-snug">{i + 1}. {q.question}</p>
                     <div className="flex items-center gap-2">
-                        {isCorrect && <span className="text-green-600 font-black text-xs uppercase">✓ Correct (+1 Mark)</span>}
-                        {isWrong && <span className="text-red-600 font-black text-xs uppercase">✗ Wrong (-1 Mark)</span>}
-                        {!userKey && <span className="text-gray-400 font-black text-xs uppercase">○ Unanswered (0 Marks)</span>}
+                        {isCorrect && <span className="text-green-600 font-black text-[10px] uppercase bg-green-100 px-2 py-0.5 rounded">✓ Correct (+1 Mark)</span>}
+                        {isWrong && <span className="text-red-600 font-black text-[10px] uppercase bg-red-100 px-2 py-0.5 rounded">✗ Wrong (-1 Mark)</span>}
+                        {!userKey && <span className="text-gray-400 font-black text-[10px] uppercase bg-gray-100 px-2 py-0.5 rounded">○ Unanswered (0 Marks)</span>}
                     </div>
                 </div>
                 {isCorrect ? <CheckCircle className="text-green-500 shrink-0" size={32} /> :
@@ -314,14 +322,15 @@ export default function QuizPage() {
                 </div>
               )}
 
-              {(isWrong || !userKey) && (
-                <div className="mt-8 p-6 rounded-2xl bg-brand-50/50 dark:bg-brand-900/10 border-2 border-brand-100 dark:border-brand-800 relative">
-                  <div className="absolute -top-3 left-6 bg-brand-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-sm">STUDY EXPLANATION</div>
+              {/* Enhanced Explanation Section */}
+              <div className="mt-8 p-6 rounded-2xl bg-brand-50/50 dark:bg-brand-900/10 border-2 border-brand-100 dark:border-brand-800 relative">
+                  <div className="absolute -top-3 left-6 bg-brand-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-sm">AI TUTOR EXPLANATION</div>
                   <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-semibold italic">
-                      {isWrong ? `You selected an incorrect option. ${q.explanation}` : `You skipped this question. ${q.explanation}`}
+                      {isCorrect ? `Excellent! ${q.explanation}` :
+                       isWrong ? `The correct answer is ${correctKey || q.answer}. ${q.explanation}` :
+                       `You skipped this. The correct answer was ${correctKey || q.answer}. ${q.explanation}`}
                   </p>
-                </div>
-              )}
+              </div>
             </div>
           );
         })}
@@ -329,12 +338,12 @@ export default function QuizPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-8 pb-24">
         <button onClick={() => setStep("config")} className="flex items-center justify-center gap-2 bg-gray-900 text-white py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all">
-          <RotateCcw size={20} /> RETAKE QUIZ
+          <RotateCcw size={20} /> RETAKE EXAM
         </button>
-        <button onClick={exportToExcel} className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all">
+        <button onClick={exportToExcel} className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all border-none">
           <FileSpreadsheet size={20} /> EXCEL REPORT
         </button>
-        <button onClick={exportToPDF} className="flex items-center justify-center gap-2 bg-brand-600 text-white py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all">
+        <button onClick={exportToPDF} className="flex items-center justify-center gap-2 bg-brand-600 text-white py-4 rounded-2xl font-black shadow-xl hover:scale-[1.03] transition-all border-none">
           <FileText size={20} /> PDF REPORT
         </button>
       </div>
