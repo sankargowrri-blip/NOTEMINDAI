@@ -1,5 +1,5 @@
 from __future__ import annotations
-from sqlalchemy import String, Enum, Boolean, DateTime, Integer
+from sqlalchemy import String, Enum, Boolean, DateTime, Integer, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 import enum
@@ -29,7 +29,7 @@ class User(Base):
     is_email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     storage_quota_mb: Mapped[int] = mapped_column(Integer, default=2048)  # 2 GB default
-    storage_used_mb: Mapped[float] = mapped_column(default=0.0)
+    storage_used_mb: Mapped[float] = mapped_column(Float, default=0.0)
     firebase_uid: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(

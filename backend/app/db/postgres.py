@@ -66,6 +66,8 @@ async def init_db():
                     
                     for table, parent, column, constraint in fixes:
                         try:
+                            # Drop existing if it exists (may have different name or no cascade)
+                            # Attempting to re-apply with CASCADE
                             await conn.execute(text(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {constraint}"))
                             await conn.execute(text(f"ALTER TABLE {table} ADD CONSTRAINT {constraint} FOREIGN KEY ({column}) REFERENCES {parent}(id) ON DELETE CASCADE"))
                         except Exception:

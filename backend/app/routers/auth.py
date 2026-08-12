@@ -1,7 +1,6 @@
 """Authentication router: register, login, refresh, local password reset via security questions."""
 from __future__ import annotations
 import logging
-import re
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +18,7 @@ from app.services.auth_service import (
 )
 
 router = APIRouter()
-logger = logging.getLogger("notemind")
+logger = logging.getLogger("notemind.auth")
 
 
 class RegisterRequest(BaseModel):
@@ -59,6 +58,8 @@ class LocalResetRequest(BaseModel):
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     try:
         logger.info(f"REG_ATTEMPT: email={body.email}")
+        
+        # Case insensitive email check
         result = await db.execute(select(User).where(func.lower(User.email) == func.lower(body.email)))
         if result.scalar_one_or_none():
             logger.warning(f"REG_FAILED: Email {body.email} already exists")
@@ -82,20 +83,23 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"REG_CRASH: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error during registration")
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 
 @router.post("/login")
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(func.lower(User.email) == func.lower(body.email)))
     user = result.scalar_one_or_none()
+    
     if not user or not verify_password(body.password, user.hashed_password or ""):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account suspended")
     
     access = create_access_token({"sub": str(user.id), "role": user.role.value})
     refresh = create_refresh_token({"sub": str(user.id)})
+    
     return {
         "access_token": access,
         "refresh_token": refresh,
@@ -114,10 +118,13 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
         user_id = int(payload.get("sub"))
     except (JWTError, TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid refresh token")
+    
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
+    
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
+    
     access = create_access_token({"sub": str(user.id), "role": user.role.value})
     return {"access_token": access, "token_type": "bearer"}
 
@@ -173,10 +180,13 @@ async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(
         user_id = int(payload.get("sub"))
     except (JWTError, TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
+    
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
     user.hashed_password = hash_password(body.new_password)
     await db.commit()
     return {"message": "Password reset successful"}
