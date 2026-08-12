@@ -41,14 +41,12 @@ async def search(
                 })
         return {"results": results, "mode": "semantic"}
 
-    # Keyword search
+    # Comprehensive Keyword search
     query = select(Note).where(Note.owner_id == current_user.id)
     
-    # Support partial matches across metadata and content
-    # Handle "Unit 3" -> "Unit-3" etc via flexible matching if needed, 
-    # but ILIKE with wildcards is usually enough for "Unit 3" matches "Unit 3 notes"
-    
-    wildcard_q = f"%{clean_q}%"
+    # Advanced flexible matching for "Unit 3" vs "Unit-3"
+    flexible_q = clean_q.replace(" ", "%").replace("-", "%")
+    wildcard_q = f"%{flexible_q}%"
     
     query = query.where(
         or_(

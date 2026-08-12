@@ -69,6 +69,8 @@ async def list_notes(
         q = q.where(Note.subject == subject)
     if semester:
         q = q.where(Note.semester == semester)
+    if tag:
+        q = q.where(Note.tags.contains([tag]))
     if favourite is not None:
         q = q.where(Note.is_favourite == favourite)
     q = q.order_by(desc(Note.created_at)).limit(limit).offset(offset)

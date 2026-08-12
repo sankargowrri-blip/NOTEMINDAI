@@ -53,10 +53,12 @@ async def lifespan(app: FastAPI):
     from app.models.note import Note
     from sqlalchemy import select
     import fitz
+    import os
+    import builtins
     
     async def fix_old_notes():
         async for db in get_db():
-            # 1. Correct Page Counts
+            # 1. Correct Page Counts and re-extract text if truncated
             result = await db.execute(select(Note).where(Note.page_count == 1))
             notes = result.scalars().all()
             for note in notes:
@@ -65,25 +67,28 @@ async def lifespan(app: FastAPI):
                     path = os.path.join(settings.local_upload_dir, rel)
                     if os.path.exists(path):
                         try:
-                            doc = fitz.open("pdf", path)
+                            # Open PDF reliably
+                            doc = fitz.open(path)
                             real_count = doc.page_count
                             if real_count > 1:
-                                logging.info(f"FIX: Updating page count for note {note.id} to {real_count}")
+                                logging.info(f"AUTO_FIX: Updating page count for note {note.id} to {real_count}")
                                 note.page_count = real_count
-                                # 2. Re-extract if text was truncated (Check for multi-page docs with single-page text)
+                                # Re-extract if text was likely truncated (check if text len is small for multiple pages)
                                 current_text = note.refined_text or ""
                                 if builtins.len(current_text) < (real_count * 300):
-                                    logging.info(f"FIX: Re-extracting full text from {real_count} pages for note {note.id}")
+                                    logging.info(f"AUTO_FIX: Re-extracting full text from {real_count} pages for note {note.id}")
                                     note.refined_text = "\n\n".join([p.get_text("text") for p in doc])
                             doc.close()
-                        except: pass
+                        except Exception as e:
+                            logging.error(f"AUTO_FIX_FAILED for note {note.id}: {e}")
             await db.commit()
             break
             
     import asyncio
     try:
         asyncio.create_task(fix_old_notes())
-    except: pass
+    except Exception as e:
+        logging.error(f"Background task failed: {e}")
     
     yield
     logging.info("Shutting down NoteMind AI...")

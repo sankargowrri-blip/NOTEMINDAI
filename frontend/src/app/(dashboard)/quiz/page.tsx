@@ -245,24 +245,30 @@ export default function QuizPage() {
   );
 
   if (step === "result" && result && quiz) return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-fade-in py-6 px-2 pb-20">
-      <div className="card p-10 text-center space-y-4 shadow-2xl border-t-8 border-t-brand-500">
-        <div className={`w-32 h-32 rounded-full mx-auto flex flex-col items-center justify-center text-white shadow-lg border-8 border-white/20 ${result.score >= (result.total / 2) ? "bg-green-500" : "bg-red-500"}`}>
+    <div className="max-w-3xl mx-auto space-y-8 animate-fade-in py-6 px-2 pb-24">
+      <div className="card p-10 text-center space-y-4 shadow-2xl border-t-8 border-t-brand-500 overflow-hidden relative">
+        <div className="absolute top-0 right-0 p-4 opacity-5">
+            <User size={120} />
+        </div>
+
+        <div className={`w-32 h-32 rounded-full mx-auto flex flex-col items-center justify-center text-white shadow-lg border-8 border-white/20 z-10 relative ${result.score >= (result.total / 2) ? "bg-green-500" : "bg-red-500"}`}>
             <span className="text-4xl font-black">{result.score}</span>
             <span className="text-[10px] font-bold opacity-80 uppercase tracking-tighter">MARKS</span>
         </div>
-        <div>
+
+        <div className="z-10 relative">
           <div className="flex items-center justify-center gap-2 mb-2 text-gray-500 font-bold uppercase text-[10px] tracking-widest">
               <User size={14} className="text-brand-500" /> Student: {result.student_name}
           </div>
           <h2 className="text-3xl font-black text-gray-900 dark:text-white">Exam Results</h2>
-          <div className="flex items-center justify-center gap-6 mt-4">
-              <div className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={18}/> {result.correct} Correct</div>
-              <div className="text-red-600 font-bold flex items-center gap-1"><XCircle size={18}/> {result.wrong} Wrong</div>
-              <div className="text-gray-500 font-bold flex items-center gap-1"><MinusCircle size={18}/> {result.unanswered} Skipped</div>
+          <div className="flex items-center justify-center gap-6 mt-4 flex-wrap">
+              <div className="text-green-600 font-bold flex items-center gap-1.5"><CheckCircle size={18}/> {result.correct} Correct</div>
+              <div className="text-red-600 font-bold flex items-center gap-1.5"><XCircle size={18}/> {result.wrong} Wrong</div>
+              <div className="text-gray-500 font-bold flex items-center gap-1.5"><MinusCircle size={18}/> {result.unanswered} Skipped</div>
           </div>
         </div>
-        <div className="pt-4">
+
+        <div className="pt-4 z-10 relative">
             <div className="text-brand-600 font-black text-4xl">{result.percentage}%</div>
             <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-1">Accuracy Grade</p>
         </div>

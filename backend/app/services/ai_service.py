@@ -5,7 +5,7 @@ import re
 import logging
 from app.config import settings
 from app.services.search_tool import search_tool
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -124,16 +124,19 @@ async def translate_note(text: str, target_language: str) -> str:
     return await _chat(f"Translate to {target_language}.", safe_text)
 
 async def generate_big_questions(text: str) -> List[Dict]:
-    """Generate long questions with expanded context for multi-page notes."""
+    """Generate long questions with expanded context and detailed full answers."""
     system = (
-        "Generate 3 university-style long questions (10-16 marks) based on the notes. "
-        "For each question, provide a structured 'outline' AND a comprehensive 'full_answer' (suitable for exam writing with headings). "
-        "Return as JSON list: [{\"question\":\"...\", \"marks\":15, \"outline\":[\"...\"], \"full_answer\":\"...\"}]"
+        "You are a professional university examiner. Generate 3 high-probability long-form questions (10-16 marks). "
+        "For each question, you MUST provide:\n"
+        "1. 'question': A clear, academic-style question.\n"
+        "2. 'marks': The mark value (10, 12, 15, or 16).\n"
+        "3. 'outline': A 5-8 point proposed answer structure (Introduction, Main Points, Conclusion).\n"
+        "4. 'full_answer': A comprehensive, exam-ready answer following the outline. Use markdown for headings (###), bold text for key terms, and bullet points for readability. "
+        "The answer must be detailed enough to earn the full marks specified. Use info only from the provided [NOTE TEXT]."
     )
-    # Increased context for big questions to see the WHOLE document (up to 10k chars)
-    # 10k chars is approx 2500 tokens, safe for free tier Groq TPM.
+    # Context boost to 10k chars for multi-page notes
     safe_text = truncate_text(text, max_chars=10000)
-    raw = await _chat(system, user=f"Notes:\n\n{safe_text}")
+    raw = await _chat(system, user=f"NOTE TEXT:\n\n{safe_text}")
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         if match:

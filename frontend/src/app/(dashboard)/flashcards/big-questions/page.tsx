@@ -76,57 +76,67 @@ function BigQuestionsContent() {
     const doc = new jsPDF();
     const note = notes.find(n => n.id === selectedNoteId);
 
-    // Header
-    doc.setFontSize(24);
+    // Title & Branding
+    doc.setFontSize(22);
     doc.setTextColor(79, 88, 255);
-    doc.text("NoteMind AI", 14, 20);
+    doc.text("NoteMind AI — Exam Study Guide", 14, 20);
 
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text(`Subject: ${note?.subject || "General"} | Unit: ${note?.unit || "N/A"}`, 14, 28);
+    doc.text(`Subject: ${note?.subject || "General"} | Topic: ${note?.title || "N/A"}`, 14, 28);
     doc.line(14, 32, 196, 32);
 
-    // Question
-    doc.setFontSize(16);
+    // Question Section
+    doc.setFontSize(14);
     doc.setTextColor(33);
-    const splitQuestion = doc.splitTextToSize(`${q.question} (${q.marks} Marks)`, 180);
-    doc.text(splitQuestion, 14, 42);
+    const qText = `Question (${q.marks} Marks): ${q.question}`;
+    const splitQ = doc.splitTextToSize(qText, 180);
+    doc.text(splitQ, 14, 42);
 
-    let currentY = 42 + (splitQuestion.length * 7);
+    let yPos = 42 + (splitQ.length * 7);
 
-    // Structure
+    // Outline Section
     doc.setFontSize(12);
     doc.setTextColor(79, 88, 255);
-    doc.text("Proposed Answer Structure:", 14, currentY + 10);
+    doc.text("Proposed Answer Structure:", 14, yPos + 10);
 
     doc.setFontSize(10);
     doc.setTextColor(80);
-    const structureItems = q.outline.map((s, i) => [`${i + 1}`, s]);
-
+    const outlineData = q.outline.map((item, idx) => [`${idx + 1}.`, item]);
     autoTable(doc, {
-        startY: currentY + 14,
-        body: structureItems,
-        theme: 'plain',
-        styles: { fontSize: 9, cellPadding: 2 },
-        columnStyles: { 0: { cellWidth: 10, fontStyle: 'bold' } }
+      startY: yPos + 14,
+      body: outlineData,
+      theme: "plain",
+      styles: { fontSize: 9, cellPadding: 1 },
+      columnStyles: { 0: { cellWidth: 10 } }
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 15;
+    yPos = (doc as any).lastAutoTable.finalY + 15;
 
-    // Full Answer
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text("Full Answer", 14, currentY);
+    // Full Answer Section
+    doc.setFontSize(12);
+    doc.setTextColor(33);
+    doc.text("Full Exam-Ready Answer:", 14, yPos);
 
     doc.setFontSize(10);
-    doc.setTextColor(50);
-    const splitAnswer = doc.splitTextToSize(q.full_answer || "No full answer generated.", 180);
+    doc.setTextColor(60);
+    const answerClean = (q.full_answer || "No answer generated.").replace(/###/g, "").replace(/\*\*/g, "");
+    const splitA = doc.splitTextToSize(answerClean, 180);
 
-    // Multi-page support for long answers
-    doc.text(splitAnswer, 14, currentY + 8);
+    // Auto-paging for long answers
+    let remainingA = splitA;
+    while (remainingA.length > 0) {
+        const pageLines = remainingA.slice(0, 30); // Approx lines per page
+        doc.text(pageLines, 14, yPos + 10);
+        remainingA = remainingA.slice(pageLines.length);
+        if (remainingA.length > 0) {
+            doc.addPage();
+            yPos = 20;
+        }
+    }
 
-    doc.save(`${note?.title || 'Study'}_Big_Question.pdf`);
-    toast.success("PDF Downloaded!");
+    doc.save(`${note?.title || "Study"}_Full_Answer.pdf`);
+    toast.success("PDF Downloaded successfully!");
   };
 
   return (

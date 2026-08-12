@@ -4,7 +4,7 @@ import io
 import uuid
 import logging
 import fitz
-import typing
+from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "application/pdf"}
 
-def _extract_pdf_metadata(pdf_bytes: bytes) -> typing.Dict[str, typing.Any]:
+def _extract_pdf_metadata(pdf_bytes: bytes) -> Dict[str, Any]:
     """Extract page count and other metadata from PDF."""
     try:
-        # Open PDF from bytes
+        # Open PDF reliably from bytes
         doc = fitz.open("pdf", pdf_bytes)
         count = doc.page_count
         meta = doc.metadata
@@ -36,7 +36,7 @@ def _extract_pdf_metadata(pdf_bytes: bytes) -> typing.Dict[str, typing.Any]:
         }
     except Exception as e:
         logger.error(f"CRITICAL: PDF Metadata extraction failed: {str(e)}")
-        # If it fails, we still return 1 as fallback but log the failure
+        # Fallback to 1 but ensure logging happens
         return {"page_count": 1, "metadata": {}}
 
 def _extract_pdf_text_direct(pdf_bytes: bytes) -> str:
