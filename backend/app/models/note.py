@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from sqlalchemy import String, Integer, Float, Boolean, DateTime, ForeignKey, Text, JSON, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -48,6 +49,11 @@ class Note(Base):
 
     owner: Mapped["User"] = relationship("User", back_populates="notes")  # noqa
     folder: Mapped["Folder | None"] = relationship("Folder", back_populates="notes")  # noqa
+    
+    # Explicit relationships for cascade help if needed
+    quizzes: Mapped[list["Quiz"]] = relationship("Quiz", back_populates="note", cascade="all, delete-orphan")
+    attempts: Mapped[list["QuizAttempt"]] = relationship("QuizAttempt", back_populates="note", cascade="all, delete-orphan")
+    flashcard_sets: Mapped[list["FlashcardSet"]] = relationship("FlashcardSet", back_populates="note", cascade="all, delete-orphan")
 
 
 class Folder(Base):

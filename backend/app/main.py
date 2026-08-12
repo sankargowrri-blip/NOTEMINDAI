@@ -7,6 +7,8 @@ from fastapi.responses import JSONResponse
 import os
 import time
 import logging
+import shutil
+import asyncio
 import builtins
 
 from app.config import settings
@@ -49,44 +51,52 @@ async def lifespan(app: FastAPI):
 
     await init_db()
     
-    # Background repair for notes (Fix page_count and truncated text)
+    # ONE-TIME TOTAL SYSTEM PURGE (Requested by User for fresh start)
+    from sqlalchemy import text, delete
     from app.models.note import Note
-    from sqlalchemy import select
-    import fitz
-    import os
-    import builtins
+    from app.models.quiz import Quiz, QuizAttempt
+    from app.models.flashcard import FlashcardSet, FlashcardRecall
+    from app.models.analytics import StudySession, WeakTopic
     
-    async def fix_old_notes():
+    async def total_purge():
         async for db in get_db():
-            # 1. Correct Page Counts and re-extract text if truncated
-            result = await db.execute(select(Note).where(Note.page_count == 1))
-            notes = result.scalars().all()
-            for note in notes:
-                if note.original_file_url and note.original_file_url.lower().endswith(".pdf"):
-                    rel = note.original_file_url.replace("/uploads/", "")
-                    path = os.path.join(settings.local_upload_dir, rel)
-                    if os.path.exists(path):
-                        try:
-                            # Open PDF reliably
-                            doc = fitz.open(path)
-                            real_count = doc.page_count
-                            if real_count > 1:
-                                logging.info(f"AUTO_FIX: Updating page count for note {note.id} to {real_count}")
-                                note.page_count = real_count
-                                # Re-extract if text was likely truncated (check if text len is small for multiple pages)
-                                current_text = note.refined_text or ""
-                                if builtins.len(current_text) < (real_count * 300):
-                                    logging.info(f"AUTO_FIX: Re-extracting full text from {real_count} pages for note {note.id}")
-                                    note.refined_text = "\n\n".join([p.get_text("text") for p in doc])
-                            doc.close()
-                        except Exception as e:
-                            logging.error(f"AUTO_FIX_FAILED for note {note.id}: {e}")
-            await db.commit()
+            logging.info("!!! STARTING TOTAL SYSTEM PURGE !!!")
+            try:
+                # 1. Clear SQL Data
+                await db.execute(delete(QuizAttempt))
+                await db.execute(delete(Quiz))
+                await db.execute(delete(FlashcardRecall))
+                await db.execute(delete(FlashcardSet))
+                await db.execute(delete(StudySession))
+                await db.execute(delete(WeakTopic))
+                await db.execute(delete(Note))
+                # Note: We keep User accounts but reset their storage
+                await db.execute(text("UPDATE users SET storage_used_mb = 0"))
+                
+                # 2. Clear MongoDB
+                try:
+                    from app.db.mongo import get_mongo_db
+                    mdb = get_mongo_db()
+                    for coll in ["notes_content", "note_versions", "chat_history", "quiz_responses", "bookmarks"]:
+                        await mdb[coll].delete_many({})
+                except: pass
+                
+                # 3. Clear Files
+                upload_dir = settings.local_upload_dir
+                if os.path.exists(upload_dir):
+                    for f in os.listdir(upload_dir):
+                        path = os.path.join(upload_dir, f)
+                        if os.path.isfile(path): os.unlink(path)
+                        elif os.path.isdir(path): shutil.rmtree(path)
+                
+                await db.commit()
+                logging.info("!!! PURGE COMPLETED SUCCESSFULLY !!!")
+            except Exception as e:
+                logging.error(f"PURGE FAILED: {e}")
             break
-            
-    import asyncio
+
     try:
-        asyncio.create_task(fix_old_notes())
+        asyncio.create_task(total_purge())
     except Exception as e:
         logging.error(f"Background task failed: {e}")
     
