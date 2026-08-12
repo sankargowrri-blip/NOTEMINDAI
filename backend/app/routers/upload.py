@@ -1,14 +1,15 @@
-"""File upload router with 2GB quota enforcement and optimized multi-page PDF handling."""
+"""File upload router with 2GB quota enforcement and background multi-page processing."""
 from __future__ import annotations
 import io
 import uuid
 import logging
 import fitz
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form
+import typing
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from app.db.postgres import get_db
+from app.db.postgres import get_db, AsyncSessionLocal
 from app.models.user import User
 from app.models.note import Note, NoteStatus
 from app.routers.deps import get_current_user
@@ -22,61 +23,113 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "application/pdf"}
 
-def _extract_pdf_metadata(pdf_bytes: bytes) -> Dict[str, Any]:
-    """Extract page count and other metadata from PDF."""
-    try:
-        # Open PDF reliably from bytes
-        doc = fitz.open("pdf", pdf_bytes)
-        count = doc.page_count
-        meta = doc.metadata
-        doc.close()
-        return {
-            "page_count": count,
-            "metadata": meta
-        }
-    except Exception as e:
-        logger.error(f"CRITICAL: PDF Metadata extraction failed: {str(e)}")
-        # Fallback to 1 but ensure logging happens
-        return {"page_count": 1, "metadata": {}}
+async def process_note_background(note_id: int, content: bytes, language: str, filename: str, user_id: int):
+    """Heavy processing (OCR, Refinement, Indexing) moved to background to prevent timeouts."""
+    async with AsyncSessionLocal() as db:
+        try:
+            # 1. Re-fetch the note
+            result = await db.execute(select(Note).where(Note.id == note_id))
+            note = result.scalar_one_or_none()
+            if not note:
+                logger.error(f"BACKGROUND_PROC_FAILED: Note {note_id} not found.")
+                return
 
-def _extract_pdf_text_direct(pdf_bytes: bytes) -> str:
-    """Extract text from ALL pages of a PDF."""
-    try:
-        doc = fitz.open("pdf", pdf_bytes)
-        parts = []
-        logger.info(f"EXTRACTION: Starting direct extraction from {doc.page_count} pages.")
-        
-        for page in doc:
-            t = page.get_text("text")
-            if t.strip(): 
-                parts.append(t.strip())
-        
-        full_text = "\n\n".join(parts)
-        doc.close()
-        logger.info(f"EXTRACTION: Completed. Total characters: {len(full_text)}")
-        return full_text
-    except Exception as e:
-        logger.error(f"EXTRACTION_FAILED: Direct extraction crashed: {str(e)}")
-        return ""
+            is_pdf = filename.lower().endswith(".pdf")
+            page_count = 1
+            raw_text = ""
 
-def _split_pdf_to_images(pdf_bytes: bytes, max_pages: int = 50) -> list[bytes]:
-    """Convert scanned PDF pages to images for OCR. Increased limit to 50 pages."""
-    pages = []
-    try:
-        doc = fitz.open("pdf", pdf_bytes)
-        for i, page in enumerate(doc):
-            if i >= max_pages: 
-                logger.warning(f"OCR limit reached: only first {max_pages} pages will be processed.")
-                break
-            pix = page.get_pixmap(dpi=150)
-            pages.append(pix.tobytes("png"))
-        doc.close()
-    except Exception as e:
-        logger.error(f"PDF to Image conversion failed: {e}")
-    return pages
+            # 2. Extract Text / Metadata
+            if is_pdf:
+                try:
+                    doc = fitz.open("pdf", content)
+                    page_count = doc.page_count
+                    
+                    # Extract text from all pages
+                    parts = []
+                    for page in doc:
+                        t = page.get_text("text")
+                        if t.strip():
+                            parts.append(t.strip())
+                    raw_text = "\n\n".join(parts)
+                    doc.close()
+                except Exception as e:
+                    logger.error(f"BACKGROUND_PDF_ERROR: {e}")
+
+            # 3. OCR Fallback (if no text extracted or specifically requested)
+            if not raw_text.strip():
+                logger.info(f"BACKGROUND_OCR_START: Running OCR for note {note_id}")
+                note.status = NoteStatus.ocr_processing
+                await db.commit()
+
+                text_parts = []
+                if is_pdf:
+                    try:
+                        doc = fitz.open("pdf", content)
+                        # Process up to 50 pages for OCR to avoid memory issues on free tier
+                        for i, page in enumerate(doc):
+                            if i >= 50: break 
+                            pix = page.get_pixmap(dpi=150)
+                            img_bytes = pix.tobytes("png")
+                            ocr_res = run_ocr(img_bytes, language=language)
+                            text_parts.append(ocr_res["text"])
+                        doc.close()
+                    except Exception as e:
+                        logger.error(f"BACKGROUND_OCR_PDF_ERROR: {e}")
+                else:
+                    ocr_res = run_ocr(content, language=language)
+                    text_parts.append(ocr_res["text"])
+                
+                raw_text = "\n\n".join(text_parts)
+
+            if not raw_text.strip():
+                note.status = NoteStatus.error
+                await db.commit()
+                return
+
+            # 4. Refinement
+            note.status = NoteStatus.refining
+            await db.commit()
+            
+            try:
+                # Refine text in blocks if very large
+                refined_res = refine_text(raw_text)
+                refined = refined_res["refined_text"]
+            except Exception as e:
+                logger.warning(f"BACKGROUND_REFINEMENT_FAILED: {e}")
+                refined = raw_text
+
+            # 5. Update Note and Set Ready
+            note.page_count = page_count
+            note.raw_ocr_text = raw_text
+            note.refined_text = refined
+            note.status = NoteStatus.ready
+            await db.commit()
+
+            # 6. Indexing
+            try:
+                chunks = [c.strip() for c in refined.split("\n\n") if len(c.strip()) > 50]
+                if chunks:
+                    index_note(str(user_id), str(note.id), chunks)
+            except Exception as e:
+                logger.warning(f"BACKGROUND_INDEXING_FAILED: {e}")
+
+            logger.info(f"BACKGROUND_PROC_SUCCESS: Note {note_id} is ready ({page_count} pages).")
+
+        except Exception as e:
+            logger.error(f"BACKGROUND_CRITICAL_ERROR: {e}")
+            try:
+                # Re-fetch in case of session issues
+                async with AsyncSessionLocal() as err_db:
+                    res = await err_db.execute(select(Note).where(Note.id == note_id))
+                    err_note = res.scalar_one_or_none()
+                    if err_note:
+                        err_note.status = NoteStatus.error
+                        await err_db.commit()
+            except: pass
 
 @router.post("/", status_code=201)
 async def upload_file(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     language: str = Form(default="en"),
     title: str = Form(default=""),
@@ -97,58 +150,23 @@ async def upload_file(
         )
 
     file_hash = compute_file_hash(content)
-    is_pdf = file.filename.lower().endswith(".pdf")
     
-    # 2. Extract Metadata (Page Count)
-    page_count = 1
-    if is_pdf:
-        meta = _extract_pdf_metadata(content)
-        page_count = meta["page_count"]
-        logger.info(f"UPLOAD: Detected {page_count} pages for file {file.filename}")
-    
-    # 3. Try Direct Text Extraction
-    raw_text = ""
-    if is_pdf:
-        raw_text = _extract_pdf_text_direct(content)
-    
-    # 4. Scanned / Image PDF Fallback (OCR)
-    if not raw_text.strip():
-        logger.info(f"OCR_FALLBACK: File {file.filename} is likely scanned. Starting OCR...")
-        images = _split_pdf_to_images(content) if is_pdf else [content]
-        text_parts = []
-        for i, img in enumerate(images):
-            ocr_res = run_ocr(img, language=language)
-            text_parts.append(ocr_res["text"])
-        raw_text = "\n\n".join(text_parts)
-
-    if not raw_text.strip():
-        raise HTTPException(422, detail="No readable text found in file. Please ensure it's not a blurry image.")
-
-    # 5. Save and Store
+    # 2. Immediate Save to Storage
     unique_name = f"{uuid.uuid4()}_{file.filename}"
     url = await save_file(content, current_user.id, f"original/{unique_name}")
     
-    # 6. Refine Text (Block-based refinement for large docs)
-    try:
-        refined_res = refine_text(raw_text)
-        refined = refined_res["refined_text"]
-    except Exception as e:
-        logger.warning(f"Text refinement failed: {e}")
-        refined = raw_text
-    
+    # 3. Create Note Entry (Pending)
     note = Note(
         owner_id=current_user.id,
         title=title.strip() or file.filename.rsplit(".", 1)[0],
-        status=NoteStatus.ready,
+        status=NoteStatus.pending,
         language=language,
         original_file_url=url,
-        refined_text=refined,
-        raw_ocr_text=raw_text,
         file_hash=file_hash,
         file_size_mb=round(float(size_mb), 2),
-        page_count=page_count,
         subject=subject or None,
-        semester=semester or None
+        semester=semester or None,
+        page_count=1 # Default until background proc updates it
     )
     
     # Update user storage usage
@@ -158,18 +176,14 @@ async def upload_file(
     await db.commit()
     await db.refresh(note)
     
-    # 7. Index for AI Assistant
-    try:
-        # Smart chunking for multi-page docs
-        chunks = [c.strip() for c in refined.split("\n\n") if len(c.strip()) > 50]
-        if chunks:
-            index_note(str(current_user.id), str(note.id), chunks)
-    except Exception as e:
-        logger.warning(f"AI Assistant indexing skipped: {e}")
+    # 4. Offload Heavy Processing to Background
+    background_tasks.add_task(
+        process_note_background, 
+        note.id, 
+        content, 
+        language, 
+        file.filename, 
+        current_user.id
+    )
 
-    return {
-        "note_id": note.id, 
-        "title": note.title, 
-        "page_count": page_count,
-        "ocr_text_preview": refined[:200]
-    }
+    return {"note_id": note.id, "title": note.title, "status": "processing"}

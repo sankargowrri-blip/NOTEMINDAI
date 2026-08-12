@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 def truncate_text(text: str, max_chars: int = 4000) -> str:
     """Limit text to stay under Groq TPM limits (Free Tier)."""
     if not text: return ""
-    # Standard Python len() is fine here
     return text[:max_chars] + "..." if len(text) > max_chars else text
 
 async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Optional[List[Dict]] = None) -> str:
@@ -134,7 +133,8 @@ async def generate_big_questions(text: str) -> List[Dict]:
         "4. 'full_answer': A comprehensive, exam-ready answer following the outline. Use markdown for headings (###), bold text for key terms, and bullet points for readability. "
         "The answer must be detailed enough to earn the full marks specified. Use info only from the provided [NOTE TEXT]."
     )
-    # Context boost to 10k chars for multi-page notes
+    # Increased context for big questions to see the WHOLE document (up to 10k chars)
+    # 10k chars is approx 2500 tokens, safe for free tier Groq TPM.
     safe_text = truncate_text(text, max_chars=10000)
     raw = await _chat(system, user=f"NOTE TEXT:\n\n{safe_text}")
     try:
