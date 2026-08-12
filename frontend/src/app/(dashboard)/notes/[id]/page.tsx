@@ -92,8 +92,10 @@ export default function NoteDetailPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{note.title}</h1>
-          <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {note.subject && <span className="text-brand-600 dark:text-brand-400 font-medium">{note.subject}</span>}
+          <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
+            {note.subject && <span className="text-brand-600 dark:text-brand-400 font-bold uppercase tracking-tighter">{note.subject}</span>}
+            {note.unit && <span className="badge bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">Unit: {note.unit}</span>}
+            {note.chapter && <span className="badge bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">Ch: {note.chapter}</span>}
             <span>{note.page_count} page{note.page_count > 1 ? "s" : ""}</span>
             {note.ocr_confidence && <span>OCR: {Math.round(note.ocr_confidence * 100)}%</span>}
           </div>

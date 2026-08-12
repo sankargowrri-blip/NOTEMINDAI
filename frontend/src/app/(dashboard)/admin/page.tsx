@@ -5,7 +5,7 @@ import { useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import toast from "react-hot-toast";
-import { Shield, Users, Database, Zap, Loader2, Ban, CheckCircle } from "lucide-react";
+import { Shield, Users, Database, Zap, Loader2, Ban, CheckCircle, Trash2 } from "lucide-react";
 
 export default function AdminPage() {
   const { user } = useAuthStore();
@@ -36,13 +36,38 @@ export default function AdminPage() {
     onSuccess: () => { toast.success("User activated"); qc.invalidateQueries({ queryKey: ["admin-users"] }); },
   });
 
+  const purgeData = useMutation({
+    mutationFn: () => api.post("/api/admin/purge-data"),
+    onSuccess: () => {
+      toast.success("System data purged successfully");
+      qc.invalidateQueries({ queryKey: ["admin-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+    onError: () => { toast.error("Purge failed. Check server logs."); }
+  });
+
   if (dashLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-brand-500" size={32} /></div>;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-2">
-        <Shield className="text-red-500" size={24} />
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Panel</h1>
+    <div className="space-y-6 animate-fade-in pb-10">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Shield className="text-red-500" size={24} />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Panel</h1>
+        </div>
+
+        <button
+          onClick={() => {
+            if (confirm("DANGER: Are you sure you want to delete ALL user-generated data (notes, quizzes, etc.)? This cannot be undone.")) {
+              purgeData.mutate();
+            }
+          }}
+          disabled={purgeData.isPending}
+          className="btn-secondary text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 font-bold text-xs"
+        >
+          {purgeData.isPending ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+          Purge System Data
+        </button>
       </div>
 
       {/* System stats */}

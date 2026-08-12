@@ -52,12 +52,13 @@ export default function NotesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {notes.map((note: {
-            id: number; title: string; subject?: string; ocr_confidence?: number;
-            page_count: number; is_favourite: boolean; created_at: string; status: string;
+            id: number; title: string; subject?: string; unit?: string; chapter?: string;
+            ocr_confidence?: number; page_count: number; is_favourite: boolean;
+            created_at: string; status: string;
           }) => (
             <div key={note.id} className="relative group">
               <Link href={`/notes/${note.id}`}>
-                <div className="card p-5 hover:shadow-md transition-shadow cursor-pointer">
+                <div className="card p-5 hover:shadow-md transition-shadow cursor-pointer h-full">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div className="w-9 h-9 rounded-lg bg-brand-100 dark:bg-brand-950 flex items-center justify-center">
@@ -65,7 +66,7 @@ export default function NotesPage() {
                       </div>
                       {note.is_favourite && <Star size={14} className="text-yellow-500 fill-yellow-500" />}
                     </div>
-                    <span className={`badge text-xs px-2 py-0.5 rounded-full ${
+                    <span className={`badge text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
                       note.status === "ready"
                         ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300"
                         : "bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300"
@@ -78,9 +79,14 @@ export default function NotesPage() {
                     {note.title}
                   </h3>
 
-                  {note.subject && (
-                    <p className="text-xs text-brand-600 dark:text-brand-400 font-medium mb-2">{note.subject}</p>
-                  )}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {note.subject && (
+                      <span className="text-[10px] font-black uppercase text-brand-600 bg-brand-50 dark:bg-brand-900/30 px-2 py-0.5 rounded border border-brand-100 dark:border-brand-800 tracking-tighter">
+                        {note.subject}
+                      </span>
+                    )}
+                    {note.unit && <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-tighter">Unit: {note.unit}</span>}
+                  </div>
 
                   <div className="flex items-center justify-between text-xs text-gray-400 mt-3">
                     <span className="flex items-center gap-1">

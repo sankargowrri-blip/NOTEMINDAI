@@ -1,15 +1,20 @@
-# Task: Comprehensive Overhaul & Multi-Page PDF Fix
-
-- `[/]` Backend: Multi-Page Extraction & Auto-Repair
-    - `[ ]` Update `backend/app/main.py` with background auto-repair task
-    - `[ ]` Refine `backend/app/routers/upload.py` for reliable page counting
-- `[/]` Big Question Bank: Full Answers & PDF
-    - `[ ]` Enhance `backend/app/services/ai_service.py` prompt for full answers
-    - `[ ]` Update `frontend/src/app/(dashboard)/flashcards/big-questions/page.tsx` with Preview & PDF UI
-- `[/]` Quiz System: Professional Marking (+1/-1)
-    - `[ ]` Update `backend/app/routers/quiz.py` with strict evaluation logic
-    - `[ ]` Redesign `frontend/src/app/(dashboard)/quiz/page.tsx` result page
-- `[/]` Search & Storage Optimization
-    - `[ ]` Optimize `backend/app/routers/search.py` for deep indexing
-    - `[ ]` Add storage progress bar to `frontend/src/app/(dashboard)/dashboard/page.tsx`
-- `[ ]` Final Verification & Push
+- `[x]` Backend: Database & Models Update
+    - `[x]` Update `User` model with 2GB default quota
+    - `[x]` Ensure `CASCADE` rules are defined in `Note` model relationships
+- `[x]` Backend: Core Service Updates
+    - `[x]` Update `ai_service.py` for Big Questions Full Answer
+    - `[x]` Update `storage_service.py` with robust file deletion
+- `[x]` Backend: API Router Fixes
+    - `[x]` Fix `notes.py` deletion logic (cleanup dependencies + files)
+    - `[x]` Fix `search.py` (include content + metadata, case-insensitive)
+    - `[x]` Fix `quiz.py` (+1/-1 evaluation and result structure)
+    - `[x]` Fix `upload.py` (enforce 2GB storage quota)
+    - `[x]` Add `admin.py` purge endpoint
+- `[x]` Frontend: New Features & UI Fixes
+    - `[x]` Implement `useStudyTracker.ts` hook
+    - `[x]` Update `BigQuestionsPage` with Full Answer & PDF Export
+    - `[x]` Update `QuizPage` with accurate scoring & review UI
+    - `[x]` Update `DashboardPage` with storage and study time stats
+- `[x]` Final Verification
+    - `[x]` Purge old data (via background task/API)
+    - `[x]` End-to-end testing of all fixed features

@@ -9,6 +9,8 @@ interface NoteResult {
   id: number;
   title: string;
   subject?: string;
+  unit?: string;
+  chapter?: string;
   created_at: string;
   score?: number;
 }
@@ -91,10 +93,12 @@ export default function SearchPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-gray-900 dark:text-white truncate">{r.title}</h3>
-                      <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
-                        {r.subject && <span className="text-brand-600 dark:text-brand-400">{r.subject}</span>}
+                      <div className="flex items-center gap-3 text-xs text-gray-400 mt-1 flex-wrap">
+                        {r.subject && <span className="text-brand-600 dark:text-brand-400 font-bold uppercase tracking-tighter">{r.subject}</span>}
+                        {r.unit && <span>Unit: {r.unit}</span>}
+                        {r.chapter && <span>Ch: {r.chapter}</span>}
                         <span>{formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}</span>
-                        {r.score && <span className="text-green-500">{Math.round(r.score * 100)}% match</span>}
+                        {r.score && <span className="text-green-500 font-bold">{Math.round(r.score * 100)}% match</span>}
                       </div>
                     </div>
                   </div>
