@@ -39,33 +39,31 @@ async def purge_all_user_data(
         await db.execute(delete(StudySession))
         await db.execute(delete(WeakTopic))
         
-        # 2. Clear Notes and reset user storage usage
+        # 2. Clear Notes
         await db.execute(delete(Note))
         
-        users = await db.execute(select(User))
-        for u in users.scalars().all():
-            u.storage_used_mb = 0.0
+        # 3. Clear Users (Optional: Keep current admin? User said ALL.)
+        # To avoid foreign key issues, we delete child records first (done above).
+        # We will delete all users except the one performing the purge to keep the session alive,
+        # OR just delete all if the user insists.
+        # "1. All existing user accounts/profiles"
+        await db.execute(delete(User).where(User.id != admin.id))
+        
+        # Reset current admin's storage
+        admin.storage_used_mb = 0.0
             
-        # 3. Clear MongoDB content
+        # 4. Clear MongoDB content
         try:
-            from app.db.mongo import (
-                notes_collection, versions_collection, 
-                chat_history_collection, quiz_responses_collection,
-                get_mongo_db
-            )
-            await notes_collection().delete_many({})
-            await versions_collection().delete_many({})
-            await chat_history_collection().delete_many({})
-            await quiz_responses_collection().delete_many({})
-            await get_mongo_db()["bookmarks"].delete_many({})
+            from app.db.mongo import get_mongo_db
+            mdb = get_mongo_db()
+            for coll in ["notes_content", "note_versions", "chat_history", "quiz_responses", "bookmarks"]:
+                await mdb[coll].delete_many({})
         except Exception as me:
             logger.warning(f"PURGE: MongoDB cleanup partial failure: {me}")
 
-        # 4. Clear Local Storage Files
+        # 5. Clear Local Storage Files
         try:
             from app.config import settings
-            import shutil
-            import os
             upload_dir = settings.local_upload_dir
             if os.path.exists(upload_dir):
                 for filename in os.listdir(upload_dir):
@@ -81,11 +79,11 @@ async def purge_all_user_data(
             logger.warning(f"PURGE: Storage cleanup failed: {se}")
 
         await db.commit()
-        return {"message": "Total system purge completed successfully."}
+        return {"message": "Total system purge completed successfully. All data and other users removed."}
     except Exception as e:
         await db.rollback()
         logger.error(f"PURGE_FAILED: {str(e)}")
-        raise HTTPException(500, detail="Purge failed. Check logs.")
+        raise HTTPException(status_code=500, detail="Purge failed. Check logs.")
 
 @router.get("/dashboard")
 async def admin_dashboard(

@@ -9,7 +9,6 @@ import time
 import logging
 import shutil
 import asyncio
-import builtins
 
 from app.config import settings
 from app.db.postgres import init_db, get_db
@@ -50,56 +49,6 @@ async def lifespan(app: FastAPI):
         logging.warning("DIAGNOSTIC: Groq API Key is MISSING or invalid. AI features will fail.")
 
     await init_db()
-    
-    # ONE-TIME TOTAL SYSTEM PURGE (Requested by User for fresh start)
-    from sqlalchemy import text, delete
-    from app.models.note import Note
-    from app.models.quiz import Quiz, QuizAttempt
-    from app.models.flashcard import FlashcardSet, FlashcardRecall
-    from app.models.analytics import StudySession, WeakTopic
-    
-    async def total_purge():
-        async for db in get_db():
-            logging.info("!!! STARTING TOTAL SYSTEM PURGE !!!")
-            try:
-                # 1. Clear SQL Data
-                await db.execute(delete(QuizAttempt))
-                await db.execute(delete(Quiz))
-                await db.execute(delete(FlashcardRecall))
-                await db.execute(delete(FlashcardSet))
-                await db.execute(delete(StudySession))
-                await db.execute(delete(WeakTopic))
-                await db.execute(delete(Note))
-                # Note: We keep User accounts but reset their storage
-                await db.execute(text("UPDATE users SET storage_used_mb = 0"))
-                
-                # 2. Clear MongoDB
-                try:
-                    from app.db.mongo import get_mongo_db
-                    mdb = get_mongo_db()
-                    for coll in ["notes_content", "note_versions", "chat_history", "quiz_responses", "bookmarks"]:
-                        await mdb[coll].delete_many({})
-                except: pass
-                
-                # 3. Clear Files
-                upload_dir = settings.local_upload_dir
-                if os.path.exists(upload_dir):
-                    for f in os.listdir(upload_dir):
-                        path = os.path.join(upload_dir, f)
-                        if os.path.isfile(path): os.unlink(path)
-                        elif os.path.isdir(path): shutil.rmtree(path)
-                
-                await db.commit()
-                logging.info("!!! PURGE COMPLETED SUCCESSFULLY !!!")
-            except Exception as e:
-                logging.error(f"PURGE FAILED: {e}")
-            break
-
-    try:
-        asyncio.create_task(total_purge())
-    except Exception as e:
-        logging.error(f"Background task failed: {e}")
-    
     yield
     logging.info("Shutting down NoteMind AI...")
 

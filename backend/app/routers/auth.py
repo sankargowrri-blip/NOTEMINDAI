@@ -2,9 +2,8 @@
 from __future__ import annotations
 import logging
 import re
-import json
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from pydantic import BaseModel, EmailStr
@@ -18,8 +17,6 @@ from app.services.auth_service import (
     create_refresh_token, 
     decode_token
 )
-from app.services.email_service import send_reset_password_email
-from app.config import settings
 
 router = APIRouter()
 logger = logging.getLogger("notemind")
@@ -62,14 +59,14 @@ class LocalResetRequest(BaseModel):
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     try:
         logger.info(f"REG_ATTEMPT: email={body.email}")
-        result = await db.execute(select(User).where(User.email == body.email))
+        result = await db.execute(select(User).where(func.lower(User.email) == func.lower(body.email)))
         if result.scalar_one_or_none():
             logger.warning(f"REG_FAILED: Email {body.email} already exists")
             raise HTTPException(status_code=400, detail="Email already registered")
         
         user = User(
-            email=body.email,
-            display_name=body.display_name,
+            email=body.email.strip().lower(),
+            display_name=body.display_name.strip(),
             hashed_password=hash_password(body.password),
             role=body.role,
             security_question=body.security_question,
@@ -90,12 +87,13 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login")
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == body.email))
+    result = await db.execute(select(User).where(func.lower(User.email) == func.lower(body.email)))
     user = result.scalar_one_or_none()
     if not user or not verify_password(body.password, user.hashed_password or ""):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account suspended")
+    
     access = create_access_token({"sub": str(user.id), "role": user.role.value})
     refresh = create_refresh_token({"sub": str(user.id)})
     return {
