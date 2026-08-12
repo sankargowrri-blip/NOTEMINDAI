@@ -2,7 +2,11 @@ from sqlalchemy import String, Integer, Float, Boolean, DateTime, ForeignKey, Te
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 import enum
+from typing import TYPE_CHECKING
 from app.db.postgres import Base
+
+if TYPE_CHECKING:
+    from .note import Note
 
 
 class QuestionType(str, enum.Enum):
@@ -33,6 +37,8 @@ class Quiz(Base):
     questions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    note: Mapped["Note"] = relationship("Note", back_populates="quizzes")
+
 
 class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
@@ -45,3 +51,5 @@ class QuizAttempt(Base):
     total: Mapped[int] = mapped_column(Integer, default=0)
     answers: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     submitted_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    note: Mapped["Note"] = relationship("Note", back_populates="attempts")

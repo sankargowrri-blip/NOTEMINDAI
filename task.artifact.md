@@ -1,0 +1,7 @@
+- [ ] Add `note` relationship to `Quiz` model in `quiz.py`
+- [ ] Add `note` relationship to `QuizAttempt` model in `quiz.py`
+- [ ] Add `note` relationship to `FlashcardSet` model in `flashcard.py`
+- [ ] Verify `Note` model relationships in `note.py`
+- [ ] Verify `User` model relationships in `user.py`
+- [ ] Verify `StudySession` and `WeakTopic` in `analytics.py`
+- [ ] Final check of all `back_populates`

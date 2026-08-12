@@ -1,8 +1,12 @@
 from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, Text, JSON, Enum
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 import enum
+from typing import TYPE_CHECKING
 from app.db.postgres import Base
+
+if TYPE_CHECKING:
+    from .note import Note
 
 
 class FlashcardType(str, enum.Enum):
@@ -21,6 +25,8 @@ class FlashcardSet(Base):
     card_type: Mapped[FlashcardType] = mapped_column(Enum(FlashcardType), default=FlashcardType.standard)
     cards: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    note: Mapped["Note"] = relationship("Note", back_populates="flashcard_sets")
 
 
 class FlashcardRecall(Base):
