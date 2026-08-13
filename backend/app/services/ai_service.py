@@ -123,19 +123,16 @@ async def translate_note(text: str, target_language: str) -> str:
     return await _chat(f"Translate to {target_language}.", safe_text)
 
 async def generate_big_questions(text: str) -> List[Dict]:
-    """Generate long questions with expanded context and detailed full answers."""
+    """Generate long questions and structures (no full answers yet)."""
     system = (
         "You are a professional university examiner. Generate 3 high-probability long-form questions (10-16 marks). "
         "For each question, you MUST provide:\n"
         "1. 'question': A clear, academic-style question.\n"
         "2. 'marks': The mark value (10, 12, 15, or 16).\n"
         "3. 'outline': A 5-8 point proposed answer structure (Introduction, Main Points, Conclusion).\n"
-        "4. 'full_answer': A comprehensive, exam-ready answer following the outline. Use markdown for headings (###), bold text for key terms, and bullet points for readability. "
-        "The answer must be detailed enough to earn the full marks specified. Use info only from the provided [NOTE TEXT]."
+        "Return as JSON list: [{\"question\":\"...\", \"marks\":15, \"outline\":[\"...\"]}]"
     )
-    # Increased context for big questions to see the WHOLE document (up to 10k chars)
-    # 10k chars is approx 2500 tokens, safe for free tier Groq TPM.
-    safe_text = truncate_text(text, max_chars=10000)
+    safe_text = truncate_text(text, max_chars=8000)
     raw = await _chat(system, user=f"NOTE TEXT:\n\n{safe_text}")
     try:
         match = re.search(r"\[.*\]", raw, re.DOTALL)
@@ -144,6 +141,26 @@ async def generate_big_questions(text: str) -> List[Dict]:
         return []
     except Exception: 
         return []
+
+async def generate_full_answer(text: str, question: str, marks: int, outline: List[str]) -> str:
+    """Generate a detailed, exam-ready answer for a specific question."""
+    system = (
+        "You are an expert academic tutor. Write a comprehensive, university-level answer for the provided question. "
+        "Follow the provided 'Proposed Answer Structure' strictly. "
+        "Use markdown for headings (###) and bold text for key terms. "
+        "Match the depth to the marks specified. Ensure the answer is professional and accurate."
+    )
+    
+    safe_text = truncate_text(text, max_chars=6000)
+    user_prompt = (
+        f"QUESTION: {question}\n"
+        f"MARKS: {marks}\n"
+        f"PROPOSED STRUCTURE: {', '.join(outline)}\n\n"
+        f"SOURCE MATERIAL:\n{safe_text}\n\n"
+        "Write the FULL ANSWER now."
+    )
+    
+    return await _chat(system, user_prompt, max_tokens=3000)
 
 async def predict_exam_topics(text: str, weak_topics: List[str]) -> List[str]:
     system = "Identify most likely exam topics based on the notes and weak areas."

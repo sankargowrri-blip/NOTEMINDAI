@@ -87,6 +87,8 @@ export const aiApi = {
     api.post("/api/ai/keywords", { note_id: noteId }),
   examPredict: (noteId: number, weakTopics: string[]) =>
     api.post("/api/ai/exam-predict", { note_id: noteId, weak_topics: weakTopics }),
+  fullAnswer: (noteId: number, question: string, marks: number, outline: string[]) =>
+    api.post("/api/ai/full-answer", { note_id: noteId, question, marks, outline }),
 };
 
 // ── Quiz ──────────────────────────────────────────────────────────────────────

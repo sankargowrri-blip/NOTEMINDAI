@@ -159,6 +159,9 @@ async def delete_note(
         if note.enhanced_file_url:
             await delete_file(note.enhanced_file_url)
 
+        # Update user storage usage
+        current_user.storage_used_mb = builtins.max(0.0, builtins.float(current_user.storage_used_mb or 0) - (note.file_size_mb or 0))
+
         # 5. Delete note record
         await db.delete(note)
         await db.commit()

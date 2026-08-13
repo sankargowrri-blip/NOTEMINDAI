@@ -27,6 +27,7 @@ function BigQuestionsContent() {
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(noteId ? Number(noteId) : null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(false);
+  const [answerLoading, setAnswerLoading] = useState<number | null>(null);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   const fetchNotes = useCallback(async () => {
@@ -47,6 +48,24 @@ function BigQuestionsContent() {
     fetchNotes();
   }, [fetchNotes]);
 
+  const fetchFullAnswer = async (index: number) => {
+    if (!selectedNoteId) return;
+    const q = questions[index];
+    if (q.full_answer) return; // Already fetched
+
+    setAnswerLoading(index);
+    try {
+      const res = await aiApi.fullAnswer(selectedNoteId, q.question, q.marks, q.outline);
+      const updatedQuestions = [...questions];
+      updatedQuestions[index].full_answer = res.data.full_answer;
+      setQuestions(updatedQuestions);
+    } catch (e) {
+      toast.error("Failed to generate full answer");
+    } finally {
+      setAnswerLoading(null);
+    }
+  };
+
   const generate = async () => {
     if (!selectedNoteId) {
       toast.error("Please select a note first");
@@ -54,6 +73,7 @@ function BigQuestionsContent() {
     }
     setLoading(true);
     setQuestions([]);
+    setExpandedIndex(null);
     try {
       const res = await aiApi.bigQuestions(selectedNoteId);
       const data = res.data?.questions || [];
@@ -73,6 +93,10 @@ function BigQuestionsContent() {
   };
 
   const generatePDF = (q: Question) => {
+    if (!q.full_answer) {
+        toast.error("Please preview the answer first to generate it.");
+        return;
+    }
     const doc = new jsPDF();
     const note = notes.find(n => n.id === selectedNoteId);
 
@@ -120,18 +144,22 @@ function BigQuestionsContent() {
 
     doc.setFontSize(10);
     doc.setTextColor(60);
-    const answerClean = (q.full_answer || "No answer generated.").replace(/###/g, "").replace(/\*\*/g, "");
+    const answerClean = q.full_answer.replace(/###/g, "").replace(/\*\*/g, "");
     const splitA = doc.splitTextToSize(answerClean, 180);
 
     // Auto-paging for long answers
     let remainingA = splitA;
     while (remainingA.length > 0) {
-        const pageLines = remainingA.slice(0, 30); // Approx lines per page
+        // Calculate how many lines can fit on the current page
+        const linesPerPage = Math.floor((280 - (yPos + 10)) / 7);
+        const pageLines = remainingA.slice(0, Math.max(linesPerPage, 10));
+
         doc.text(pageLines, 14, yPos + 10);
         remainingA = remainingA.slice(pageLines.length);
+
         if (remainingA.length > 0) {
             doc.addPage();
-            yPos = 20;
+            yPos = 10; // Start near top of new page
         }
     }
 
@@ -240,22 +268,42 @@ function BigQuestionsContent() {
 
                 {/* Full Answer */}
                 <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <FileText size={16} className="text-brand-500" />
-                    Full Answer
-                  </h4>
-                  <div className="p-5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-100 dark:border-gray-800 prose prose-sm dark:prose-invert max-w-none">
-                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {q.full_answer || "Generating detailed answer..."}
-                     </ReactMarkdown>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <FileText size={16} className="text-brand-500" />
+                        Full Answer
+                    </h4>
+                    {!q.full_answer && (
+                        <button
+                            onClick={() => fetchFullAnswer(i)}
+                            disabled={answerLoading === i}
+                            className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 bg-brand-50 dark:bg-brand-900/30 px-3 py-1.5 rounded-lg border border-brand-100 dark:border-brand-800"
+                        >
+                            {answerLoading === i ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                            Preview Full Answer
+                        </button>
+                    )}
                   </div>
+
+                  {q.full_answer ? (
+                    <div className="p-5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-100 dark:border-gray-800 prose prose-sm dark:prose-invert max-w-none shadow-inner">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {q.full_answer}
+                        </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="p-10 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-xl text-center">
+                        <p className="text-xs text-gray-400 italic">Click preview to generate the complete university-style answer.</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* PDF Actions */}
                 <div className="flex gap-3 pt-4">
                     <button
                         onClick={() => generatePDF(q)}
-                        className="btn-primary py-2 px-6 shadow-lg shadow-brand-500/20"
+                        disabled={!q.full_answer}
+                        className="btn-primary py-2 px-6 shadow-lg shadow-brand-500/20 disabled:opacity-50 disabled:grayscale"
                     >
                         <Download size={18} /> Download PDF
                     </button>

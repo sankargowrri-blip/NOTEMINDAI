@@ -40,6 +40,12 @@ class ExamPredictRequest(BaseModel):
     note_id: int
     weak_topics: List[str] = []
 
+class FullAnswerRequest(BaseModel):
+    note_id: int
+    question: str
+    marks: int
+    outline: List[str]
+
 class BookmarkRequest(BaseModel):
     session_id: str
     message_content: str
@@ -219,3 +225,13 @@ async def exam_predict(
     text = await _get_note_text(body.note_id, current_user, db)
     topics = await ai_service.predict_exam_topics(text, body.weak_topics)
     return {"predicted_topics": topics}
+
+@router.post("/full-answer")
+async def get_full_answer(
+    body: FullAnswerRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    text = await _get_note_text(body.note_id, current_user, db)
+    answer = await ai_service.generate_full_answer(text, body.question, body.marks, body.outline)
+    return {"full_answer": answer}
