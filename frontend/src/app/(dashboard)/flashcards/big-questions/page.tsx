@@ -266,59 +266,55 @@ function BigQuestionsContent() {
                   </ul>
                 </div>
 
-                {/* Full Answer */}
-                <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <FileText size={16} className="text-brand-500" />
-                        Full Answer
-                    </h4>
-                    <div className="flex gap-2">
-                        {!q.full_answer ? (
-                            <button
-                                onClick={() => fetchFullAnswer(i)}
-                                disabled={answerLoading === i}
-                                className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 bg-brand-50 dark:bg-brand-900/30 px-3 py-1.5 rounded-lg border border-brand-100 dark:border-brand-800"
-                            >
-                                {answerLoading === i ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                                Preview Full Answer
-                            </button>
-                        ) : (
+                {/* Action Buttons - VISIBLE FOR EVERY CARD */}
+                <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+                    <button
+                        onClick={() => fetchFullAnswer(i)}
+                        disabled={answerLoading === i}
+                        className="btn-primary py-2 px-4 text-sm shadow-md"
+                    >
+                        {answerLoading === i ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                        {q.full_answer ? "View Full Answer" : "Preview Full Answer"}
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (!q.full_answer) {
+                                fetchFullAnswer(i).then(() => generatePDF(q));
+                            } else {
+                                generatePDF(q);
+                            }
+                        }}
+                        disabled={answerLoading === i}
+                        className="btn-secondary py-2 px-4 text-sm border border-brand-200 dark:border-brand-700"
+                    >
+                        <Download size={16} /> Download PDF
+                    </button>
+                </div>
+
+                {/* Full Answer Preview */}
+                {q.full_answer && (
+                    <div className="space-y-4 pt-4 animate-fade-in">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 uppercase tracking-tight">
+                                <FileText size={16} className="text-brand-500" />
+                                Full Structured Answer
+                            </h4>
                             <button
                                 onClick={() => fetchFullAnswer(i, true)}
                                 disabled={answerLoading === i}
-                                className="text-xs font-bold text-gray-500 hover:text-gray-700 flex items-center gap-1 bg-gray-50 dark:bg-gray-800/30 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700"
+                                className="text-[10px] font-black text-gray-500 hover:text-brand-600 flex items-center gap-1 uppercase tracking-tighter"
                             >
-                                {answerLoading === i ? <Loader2 className="animate-spin" size={14} /> : <RotateCcw size={14} />}
-                                Regenerate Answer
+                                {answerLoading === i ? <Loader2 className="animate-spin" size={12} /> : <RotateCcw size={12} />}
+                                Regenerate
                             </button>
-                        )}
+                        </div>
+                        <div className="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-brand-100 dark:border-brand-800 prose prose-sm dark:prose-invert max-w-none shadow-sm">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {q.full_answer}
+                            </ReactMarkdown>
+                        </div>
                     </div>
-                  </div>
-
-                  {q.full_answer ? (
-                    <div className="p-5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-100 dark:border-gray-800 prose prose-sm dark:prose-invert max-w-none shadow-inner">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {q.full_answer}
-                        </ReactMarkdown>
-                    </div>
-                  ) : (
-                    <div className="p-10 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-xl text-center">
-                        <p className="text-xs text-gray-400 italic">Click preview to generate the complete university-style answer.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* PDF Actions */}
-                <div className="flex gap-3 pt-4">
-                    <button
-                        onClick={() => generatePDF(q)}
-                        disabled={!q.full_answer}
-                        className="btn-primary py-2 px-6 shadow-lg shadow-brand-500/20 disabled:opacity-50 disabled:grayscale"
-                    >
-                        <Download size={18} /> Download PDF
-                    </button>
-                </div>
+                )}
               </div>
             )}
           </div>

@@ -145,19 +145,20 @@ async def generate_big_questions(text: str) -> List[Dict]:
 async def generate_full_answer(text: str, question: str, marks: int, outline: List[str]) -> str:
     """Generate a detailed, exam-ready answer for a specific question."""
     system = (
-        "You are an expert academic tutor. Write a comprehensive, university-level answer for the provided question. "
-        "Follow the provided 'Proposed Answer Structure' strictly. "
+        "You are an expert university professor. Write a comprehensive, high-scoring exam answer. "
+        "Strictly follow the provided 'Proposed Answer Structure'. "
         "Use markdown for headings (###) and bold text for key terms. "
-        "Match the depth to the marks specified. Ensure the answer is professional and accurate."
+        "Ensure the answer is professional, accurate, and matches the depth expected for the marks. "
+        "Include an introduction, detailed body points, and a conclusion."
     )
     
     safe_text = truncate_text(text, max_chars=6000)
     user_prompt = (
         f"QUESTION: {question}\n"
         f"MARKS: {marks}\n"
-        f"PROPOSED STRUCTURE: {', '.join(outline)}\n\n"
-        f"SOURCE MATERIAL:\n{safe_text}\n\n"
-        "Write the FULL ANSWER now."
+        f"STRUCTURE: {', '.join(outline)}\n\n"
+        f"CONTEXT: {safe_text}\n\n"
+        "Generate the FULL EXAM ANSWER now."
     )
     
     return await _chat(system, user_prompt, max_tokens=3000)
