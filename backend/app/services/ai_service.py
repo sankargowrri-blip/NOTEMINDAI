@@ -24,9 +24,8 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
             
             chat_messages = [{"role": "system", "content": system}]
             if messages:
-                # Filter out system messages and strictly limit history
                 history = [m for m in messages if m.get("role") != "system"]
-                chat_messages.extend(history[-2:]) # Only last 2 for extreme safety
+                chat_messages.extend(history[-2:]) 
             chat_messages.append({"role": "user", "content": user})
             
             resp = await client.chat.completions.create(
@@ -38,13 +37,11 @@ async def _chat(system: str, user: str, max_tokens: int = 2048, messages: Option
             return resp.choices[0].message.content.strip()
         except Exception as e:
             logger.error(f"GROQ_ERROR: {str(e)}")
-            return f"ERROR: The AI server is very busy ({str(e)}). Please wait 30 seconds."
-    return "AI_UNAVAILABLE: Your Groq API key is missing."
+            raise e # Raise to let the router handle it
+    raise Exception("AI_UNAVAILABLE: Your Groq API key is missing.")
 
 async def rag_chat(user_id: str, question: str, note_text: str = "", history: List[Dict] = None) -> dict:
-    """
-    Enhanced RAG Chat with strict token management.
-    """
+    """Enhanced RAG Chat with strict token management."""
     is_web = False
     system = (
         "You are NoteMind AI, an expert study assistant. Answer questions ACCURATELY and DIRECTLY. "
@@ -63,13 +60,11 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
     
     user_prompt = ""
     if note_text and len(note_text.strip()) > 50:
-        # Chat uses expanded context for multi-page docs (up to 6k chars)
         safe_text = truncate_text(note_text, max_chars=6000)
         user_prompt += f"NOTE TEXT:\n{safe_text}\n\n"
     else:
         is_web = True
     
-    # Check for web search keywords
     should_search = is_web
     if not should_search:
         keywords = ["latest", "recent", "who is", "what is", "news", "today"]
@@ -87,40 +82,50 @@ async def rag_chat(user_id: str, question: str, note_text: str = "", history: Li
             is_web = True
 
     user_prompt += f"QUESTION: {question}"
-    answer = await _chat(system, user_prompt, messages=history)
-    
-    return {
-        "answer": answer,
-        "sources": ["notes"] if "[Notes]" in answer else (["web"] if is_web else []),
-        "is_web": is_web or "[Web]" in answer
-    }
+    try:
+        answer = await _chat(system, user_prompt, messages=history)
+        return {
+            "answer": answer,
+            "sources": ["notes"] if "[Notes]" in answer else (["web"] if is_web else []),
+            "is_web": is_web or "[Web]" in answer
+        }
+    except Exception as e:
+        return {"answer": f"ERROR: The AI server is very busy. Please wait 30 seconds. ({str(e)})", "sources": [], "is_web": False}
 
 async def generate_summary(text: str, mode: str = "bullet") -> str:
     system = "You are a professional note summarizer. Give a concise summary without extra text."
     safe_text = truncate_text(text, 4000)
     prompt = f"Summarize this text as {mode}: \n\n{safe_text}"
-    return await _chat(system, prompt)
+    try:
+        return await _chat(system, prompt)
+    except:
+        return "ERROR: Summary generation failed."
 
 async def simplify_note(text: str, level: str = "school") -> str:
     system = f"Explain for {level} student."
     safe_text = truncate_text(text, 4000)
-    return await _chat(system, safe_text)
+    try:
+        return await _chat(system, safe_text)
+    except:
+        return "ERROR: Simplification failed."
 
 async def extract_keywords(text: str) -> dict:
     system = "Return JSON ONLY: {\"keywords\":[], \"definitions\":[]}. Extract only from text."
     safe_text = truncate_text(text, 4000)
-    raw = await _chat(system, safe_text)
     try:
+        raw = await _chat(system, safe_text)
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
             return json.loads(match.group())
-        return {"keywords":[], "definitions":[]}
-    except Exception: 
-        return {"keywords":[], "definitions":[]}
+    except: pass
+    return {"keywords":[], "definitions":[]}
 
 async def translate_note(text: str, target_language: str) -> str:
-    safe_text = truncate_text(text, 3000)
-    return await _chat(f"Translate to {target_language}.", safe_text)
+    try:
+        safe_text = truncate_text(text, 3000)
+        return await _chat(f"Translate to {target_language}.", safe_text)
+    except:
+        return "ERROR: Translation failed."
 
 async def generate_big_questions(text: str) -> List[Dict]:
     """Generate long questions and structures (no full answers yet)."""
@@ -133,14 +138,13 @@ async def generate_big_questions(text: str) -> List[Dict]:
         "Return as JSON list: [{\"question\":\"...\", \"marks\":15, \"outline\":[\"...\"]}]"
     )
     safe_text = truncate_text(text, max_chars=8000)
-    raw = await _chat(system, user=f"NOTE TEXT:\n\n{safe_text}")
     try:
+        raw = await _chat(system, user=f"NOTE TEXT:\n\n{safe_text}")
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         if match:
             return json.loads(match.group())
-        return []
-    except Exception: 
-        return []
+    except: pass
+    return []
 
 async def generate_full_answer(text: str, question: str, marks: int, outline: List[str]) -> str:
     """Generate a detailed, exam-ready answer for a specific question."""
@@ -161,11 +165,17 @@ async def generate_full_answer(text: str, question: str, marks: int, outline: Li
         "Generate the FULL EXAM ANSWER now."
     )
     
-    return await _chat(system, user_prompt, max_tokens=3000)
+    try:
+        return await _chat(system, user_prompt, max_tokens=3000)
+    except:
+        return "ERROR: Full answer generation failed."
 
 async def predict_exam_topics(text: str, weak_topics: List[str]) -> List[str]:
     system = "Identify most likely exam topics based on the notes and weak areas."
     safe_text = truncate_text(text, 4000)
     prompt = f"Notes: {safe_text}\nWeak Areas: {weak_topics}"
-    raw = await _chat(system, prompt)
-    return [t.strip() for t in raw.split("\n") if t.strip()]
+    try:
+        raw = await _chat(system, prompt)
+        return [t.strip() for t in raw.split("\n") if t.strip()]
+    except:
+        return []

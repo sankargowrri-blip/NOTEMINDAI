@@ -19,7 +19,7 @@ from app.services.ocr_service import run_ocr
 from app.db.vector_store import index_note
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("notemind.upload")
 
 ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "application/pdf"}
 
@@ -41,7 +41,7 @@ async def process_note_background(note_id: int, content: bytes, language: str, f
             # 2. Extract Text / Metadata
             if is_pdf:
                 try:
-                    doc = fitz.open("pdf", content)
+                    doc = fitz.open(stream=content, filetype="pdf")
                     page_count = doc.page_count
                     
                     # Extract text from all pages
@@ -55,7 +55,7 @@ async def process_note_background(note_id: int, content: bytes, language: str, f
                 except Exception as e:
                     logger.error(f"BACKGROUND_PDF_ERROR: {e}")
 
-            # 3. OCR Fallback (if no text extracted or specifically requested)
+            # 3. OCR Fallback (if no text extracted)
             if not raw_text.strip():
                 logger.info(f"BACKGROUND_OCR_START: Running OCR for note {note_id}")
                 note.status = NoteStatus.ocr_processing
@@ -64,10 +64,9 @@ async def process_note_background(note_id: int, content: bytes, language: str, f
                 text_parts = []
                 if is_pdf:
                     try:
-                        doc = fitz.open("pdf", content)
-                        # Process up to 50 pages for OCR to avoid memory issues on free tier
+                        doc = fitz.open(stream=content, filetype="pdf")
                         for i, page in enumerate(doc):
-                            if i >= 50: break 
+                            if i >= 50: break # Safety limit for free tier
                             pix = page.get_pixmap(dpi=150)
                             img_bytes = pix.tobytes("png")
                             ocr_res = run_ocr(img_bytes, language=language)
@@ -91,7 +90,6 @@ async def process_note_background(note_id: int, content: bytes, language: str, f
             await db.commit()
             
             try:
-                # Refine text in blocks if very large
                 refined_res = refine_text(raw_text)
                 refined = refined_res["refined_text"]
             except Exception as e:
@@ -118,13 +116,11 @@ async def process_note_background(note_id: int, content: bytes, language: str, f
         except Exception as e:
             logger.error(f"BACKGROUND_CRITICAL_ERROR: {e}")
             try:
-                # Re-fetch in case of session issues
-                async with AsyncSessionLocal() as err_db:
-                    res = await err_db.execute(select(Note).where(Note.id == note_id))
-                    err_note = res.scalar_one_or_none()
-                    if err_note:
-                        err_note.status = NoteStatus.error
-                        await err_db.commit()
+                result = await db.execute(select(Note).where(Note.id == note_id))
+                note = result.scalar_one_or_none()
+                if note:
+                    note.status = NoteStatus.error
+                    await db.commit()
             except: pass
 
 @router.post("/", status_code=201)
@@ -166,17 +162,15 @@ async def upload_file(
         file_size_mb=round(float(size_mb), 2),
         subject=subject or None,
         semester=semester or None,
-        page_count=1 # Default until background proc updates it
+        page_count=1 # Updated in background
     )
     
-    # Update user storage usage
     current_user.storage_used_mb = float(current_user.storage_used_mb or 0) + size_mb
     
     db.add(note)
     await db.commit()
     await db.refresh(note)
     
-    # 4. Offload Heavy Processing to Background
     background_tasks.add_task(
         process_note_background, 
         note.id, 
