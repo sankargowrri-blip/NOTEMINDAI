@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { aiApi, notesApi } from "@/lib/api";
 import { useStudyTracker } from "@/lib/useStudyTracker";
-import { BookOpen, Loader2, ChevronDown, ChevronUp, Sparkles, AlertCircle, FileText, Download } from "lucide-react";
+import { BookOpen, Loader2, ChevronDown, ChevronUp, Sparkles, AlertCircle, FileText, Download, RotateCcw } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
 import jsPDF from "jspdf";
@@ -48,10 +48,10 @@ function BigQuestionsContent() {
     fetchNotes();
   }, [fetchNotes]);
 
-  const fetchFullAnswer = async (index: number) => {
+  const fetchFullAnswer = async (index: number, force = false) => {
     if (!selectedNoteId) return;
     const q = questions[index];
-    if (q.full_answer) return; // Already fetched
+    if (q.full_answer && !force) return; // Already fetched and not forcing
 
     setAnswerLoading(index);
     try {
@@ -273,16 +273,27 @@ function BigQuestionsContent() {
                         <FileText size={16} className="text-brand-500" />
                         Full Answer
                     </h4>
-                    {!q.full_answer && (
-                        <button
-                            onClick={() => fetchFullAnswer(i)}
-                            disabled={answerLoading === i}
-                            className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 bg-brand-50 dark:bg-brand-900/30 px-3 py-1.5 rounded-lg border border-brand-100 dark:border-brand-800"
-                        >
-                            {answerLoading === i ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                            Preview Full Answer
-                        </button>
-                    )}
+                    <div className="flex gap-2">
+                        {!q.full_answer ? (
+                            <button
+                                onClick={() => fetchFullAnswer(i)}
+                                disabled={answerLoading === i}
+                                className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 bg-brand-50 dark:bg-brand-900/30 px-3 py-1.5 rounded-lg border border-brand-100 dark:border-brand-800"
+                            >
+                                {answerLoading === i ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                                Preview Full Answer
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => fetchFullAnswer(i, true)}
+                                disabled={answerLoading === i}
+                                className="text-xs font-bold text-gray-500 hover:text-gray-700 flex items-center gap-1 bg-gray-50 dark:bg-gray-800/30 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700"
+                            >
+                                {answerLoading === i ? <Loader2 className="animate-spin" size={14} /> : <RotateCcw size={14} />}
+                                Regenerate Answer
+                            </button>
+                        )}
+                    </div>
                   </div>
 
                   {q.full_answer ? (
