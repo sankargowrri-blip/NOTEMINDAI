@@ -1,4 +1,13 @@
-# NoteMind AI
+## NoteMind AI V5 - Full Overhaul Deployed
+
+This version includes:
+- Fix for multi-page PDF extraction and page counting.
+- Full exam-ready answers in Big Question Bank.
+- Professional PDF export for study guides.
+- Accurate +1/-1 quiz scoring.
+- Automatic study hours tracking.
+- 2GB storage limit.
+- Complete removal of legacy diagram features.
 
 An intelligent handwritten notes recognition, knowledge management, and AI study assistant platform.
 
