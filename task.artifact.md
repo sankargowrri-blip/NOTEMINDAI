@@ -1,7 +1,8 @@
-- [ ] Add `note` relationship to `Quiz` model in `quiz.py`
-- [ ] Add `note` relationship to `QuizAttempt` model in `quiz.py`
-- [ ] Add `note` relationship to `FlashcardSet` model in `flashcard.py`
-- [ ] Verify `Note` model relationships in `note.py`
-- [ ] Verify `User` model relationships in `user.py`
-- [ ] Verify `StudySession` and `WeakTopic` in `analytics.py`
-- [ ] Final check of all `back_populates`
+- [ ] Update `BigQuestionsPage` layout to 2-column grid for desktop
+- [ ] Implement `selectedQuestionIndex` state
+- [ ] Create `QuestionCard` component logic within the page
+- [ ] Create `FullAnswerPreview` panel component logic
+- [ ] Implement mobile-responsive preview (modal/overlay)
+- [ ] Add "Regenerate Answer" button and logic
+- [ ] Refine `generatePDF` for professional formatting
+- [ ] Verify responsiveness across all screen sizes
